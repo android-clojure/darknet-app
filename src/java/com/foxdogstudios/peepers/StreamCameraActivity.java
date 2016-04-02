@@ -33,10 +33,14 @@ import android.os.PowerManager.WakeLock;
 import android.preference.PreferenceManager;
 import android.text.format.Formatter;
 import android.util.Log;
+import android.util.DisplayMetrics;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.ViewGroup;
+import android.view.Window;
+import android.view.WindowManager;
 import android.widget.TextView;
 
 import java.net.Inet4Address;
@@ -64,6 +68,7 @@ public final class StreamCameraActivity extends Activity
 
     private boolean mRunning = false;
     private boolean mPreviewDisplayCreated = false;
+    private SurfaceView mSurfaceView = null;
     private SurfaceHolder mPreviewDisplay = null;
     private CameraStreamer mCameraStreamer = null;
 
@@ -88,11 +93,16 @@ public final class StreamCameraActivity extends Activity
     protected void onCreate(final Bundle savedInstanceState)
     {
         super.onCreate(savedInstanceState);
+        
+        requestWindowFeature(Window.FEATURE_NO_TITLE);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        
         setContentView(R.layout.stream_camera_activity);
 
         new LoadPreferencesTask().execute();
 
-        mPreviewDisplay = ((SurfaceView) findViewById(R.id.camera)).getHolder();
+        mSurfaceView = (SurfaceView) findViewById(R.id.camera);
+        mPreviewDisplay = mSurfaceView.getHolder();
         mPreviewDisplay.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
         mPreviewDisplay.addCallback(this);
 
@@ -147,6 +157,14 @@ public final class StreamCameraActivity extends Activity
     {
         mPreviewDisplayCreated = true;
         tryStartCameraStreamer();
+        DisplayMetrics screen = getResources().getDisplayMetrics();
+        ViewGroup.LayoutParams params = mSurfaceView.getLayoutParams();
+        int[] scaledToFit = scaleToFit(new int[] {params.width, params.height},
+                                       new int[] {screen.widthPixels, screen.heightPixels});
+        params.width = scaledToFit[0];
+        params.height = scaledToFit[1];
+        mSurfaceView.setLayoutParams(params);
+        mSurfaceView.requestLayout();
     } // surfaceCreated(SurfaceHolder)
 
     @Override
@@ -336,6 +354,16 @@ public final class StreamCameraActivity extends Activity
         } // catch
         return null;
     } // tryGetIpV4Address()
+
+    private int[] scaleToFit(int[] fit, int[] within) {
+        float aspectRatio = ((float) fit[0]) / ((float) fit[1]);
+        float withinRatio = ((float) within[0]) / ((float) within[1]);
+        if (aspectRatio > withinRatio) {
+            return new int[]{ within[0], (int) (within[0] / aspectRatio)};
+        } else {
+            return new int[]{ (int) (within[1] * aspectRatio), within[1]};
+        }
+    }
 
 } // class StreamCameraActivity
 
