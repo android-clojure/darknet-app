@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          package="uk.org.potentialdifference.darknet"
+          android:versionCode="{{version-code}}"
+          android:versionName="{{version-name}}" >
+
+  <uses-sdk android:minSdkVersion="15"
+            android:targetSdkVersion="{{target-version}}" />
+
+  <uses-feature android:name="android.hardware.camera" />
+  <uses-feature android:name="android.hardware.camera.autofocus" />
+  <uses-permission android:name="android.permission.CAMERA" />
+  <uses-permission android:name="android.permission.INTERNET" />
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
+    
+  <application
+      android:name="neko.App"
+      android:icon="@drawable/ic_launcher"
+      android:label="Darknet">
+    <activity android:name=".SplashActivity"
+              android:theme="@android:style/Theme.Translucent.NoTitleBar">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN"/>
+        <category android:name="android.intent.category.LAUNCHER"/>
+      </intent-filter>
+    </activity>
+    <activity android:name=".MainActivity">
+      <intent-filter>
+        <action android:name='uk.org.potentialdifference.darknet.MAIN'/>
+        <category android:name='android.intent.category.DEFAULT'/>
+      </intent-filter>
+    </activity>
+    <activity
+        android:name="com.foxdogstudios.peepers.StreamCameraActivity"
+        android:label="@string/app_name"
+        android:screenOrientation="landscape">
+    </activity>
+    
+    <activity android:name=".PublishCameraStreamActivity"></activity>
+    <activity android:name=".SubscribeCameraStreamActivity"></activity>
+  </application>
+
+  {{#debug-build}}
+  <!-- Put debug-only config here -->
+  {{/debug-build}}
+</manifest>
