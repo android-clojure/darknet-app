@@ -16,39 +16,30 @@
 package com.foxdogstudios.peepers;
 
 import java.net.InetAddress;
+import java.net.Inet4Address;
 import java.net.NetworkInterface;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
 
 import android.app.Activity;
-import android.content.Intent;
-import android.content.SharedPreferences;
-import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
-import android.content.pm.PackageManager;
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.PowerManager;
 import android.os.PowerManager.WakeLock;
-import android.preference.PreferenceManager;
-import android.text.format.Formatter;
-import android.util.Log;
 import android.util.DisplayMetrics;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.TextView;
-
-import java.net.Inet4Address;
+import android.widget.Toast;
 
 import uk.org.potentialdifference.darknet.R;
+import uk.org.potentialdifference.darknet.StreamCameraDelegate;
 
 public final class StreamCameraActivity extends Activity
-        implements SurfaceHolder.Callback
+    implements SurfaceHolder.Callback, StreamCameraDelegate
 {
     private static final String TAG = StreamCameraActivity.class.getSimpleName();
 
@@ -78,6 +69,9 @@ public final class StreamCameraActivity extends Activity
     private TextView mIpAddressView = null;
     private WakeLock mWakeLock = null;
 
+    private int mDesiredCameraWidth = 800;
+    private int mDesiredCameraHeight = 480;
+
     public StreamCameraActivity()
     {
         super();
@@ -93,6 +87,10 @@ public final class StreamCameraActivity extends Activity
         
         setContentView(R.layout.stream_camera_activity);
 
+        Bundle extras = getIntent().getExtras();
+        mDesiredCameraWidth = extras.getInt("width");
+        mDesiredCameraHeight = extras.getInt("height");
+
         mSurfaceView = (SurfaceView) findViewById(R.id.camera);
         mPreviewDisplay = mSurfaceView.getHolder();
         mPreviewDisplay.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
@@ -105,6 +103,7 @@ public final class StreamCameraActivity extends Activity
                 (PowerManager) getSystemService(POWER_SERVICE);
         mWakeLock = powerManager.newWakeLock(PowerManager.SCREEN_DIM_WAKE_LOCK,
                 WAKE_LOCK_TAG);
+
     } // onCreate(Bundle)
 
     @Override
@@ -129,7 +128,10 @@ public final class StreamCameraActivity extends Activity
     public void surfaceChanged(final SurfaceHolder holder, final int format,
             final int width, final int height)
     {
-        // Ingored
+        CharSequence text = String.format("surfaceChanged %d x %d", width, height);
+        int duration = Toast.LENGTH_LONG;
+        Toast toast = Toast.makeText(getApplicationContext(), text, duration);
+        toast.show();
     } // surfaceChanged(SurfaceHolder, int, int, int)
 
     @Override
@@ -137,14 +139,6 @@ public final class StreamCameraActivity extends Activity
     {
         mPreviewDisplayCreated = true;
         tryStartCameraStreamer();
-        DisplayMetrics screen = getResources().getDisplayMetrics();
-        ViewGroup.LayoutParams params = mSurfaceView.getLayoutParams();
-        int[] scaledToFit = scaleToFit(new int[] {params.width, params.height},
-                                       new int[] {screen.widthPixels, screen.heightPixels});
-        params.width = scaledToFit[0];
-        params.height = scaledToFit[1];
-        mSurfaceView.setLayoutParams(params);
-        mSurfaceView.requestLayout();
     } // surfaceCreated(SurfaceHolder)
 
     @Override
@@ -158,8 +152,9 @@ public final class StreamCameraActivity extends Activity
     {
         if (mRunning && mPreviewDisplayCreated)
         {
-            mCameraStreamer = new CameraStreamer(mCameraIndex, false, mPort,
-                    mPrevieSizeIndex, mJpegQuality, mPreviewDisplay);
+            mCameraStreamer = new CameraStreamer(this, mCameraIndex, false, mPort,
+                                                 mPrevieSizeIndex, mJpegQuality, mPreviewDisplay,
+                                                 mDesiredCameraWidth, mDesiredCameraHeight);
             mCameraStreamer.start();
         } // if
     } // tryStartCameraStreamer()
@@ -207,12 +202,31 @@ public final class StreamCameraActivity extends Activity
 
     private int[] scaleToFit(int[] fit, int[] within) {
         float aspectRatio = ((float) fit[0]) / ((float) fit[1]);
-        float withinRatio = ((float) within[0]) / ((float) within[1]);
+        float width = (float) within[0];
+        float height = (float) within[1];
+        float withinRatio = width / height;
         if (aspectRatio > withinRatio) {
-            return new int[]{ within[0], (int) (within[0] / aspectRatio)};
+            return new int[]{ within[0], Math.round(width / aspectRatio)};
         } else {
-            return new int[]{ (int) (within[1] * aspectRatio), within[1]};
+            return new int[]{ Math.round(height * aspectRatio), within[1]};
         }
+    }
+
+    @Override
+    public void cameraStreamDidStart(int width, int height) {
+        DisplayMetrics screen = getResources().getDisplayMetrics();
+        final ViewGroup.LayoutParams params = mSurfaceView.getLayoutParams();
+        int[] scaledToFit = scaleToFit(new int[] {width, height},
+                                       new int[] {screen.widthPixels,
+                                                  screen.heightPixels});
+        params.width = scaledToFit[0];
+        params.height = scaledToFit[1];
+        runOnUiThread(new Runnable() {
+                public void run() {
+                    mSurfaceView.setLayoutParams(params);
+                    mSurfaceView.requestLayout();
+                }
+            });
     }
 
 } // class StreamCameraActivity

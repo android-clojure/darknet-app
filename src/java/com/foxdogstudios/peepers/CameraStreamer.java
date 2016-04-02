@@ -32,6 +32,8 @@ import android.os.SystemClock;
 import android.util.Log;
 import android.view.SurfaceHolder;
 
+import uk.org.potentialdifference.darknet.StreamCameraDelegate;
+
 /* package */ final class CameraStreamer extends Object
 {
     private static final String TAG = CameraStreamer.class.getSimpleName();
@@ -66,8 +68,13 @@ import android.view.SurfaceHolder;
     private long mNumFrames = 0L;
     private long mLastTimestamp = Long.MIN_VALUE;
 
-    /* package */ CameraStreamer(final int cameraIndex, final boolean useFlashLight, final int port,
-            final int previewSizeIndex, final int jpegQuality, final SurfaceHolder previewDisplay)
+    private int mDesiredCameraWidth;
+    private int mDesiredCameraHeight;
+    private StreamCameraDelegate mStreamCameraDelegate;
+
+    /* package */ CameraStreamer(final StreamCameraDelegate streamCameraDelegate, final int cameraIndex, final boolean useFlashLight, final int port,
+                                 final int previewSizeIndex, final int jpegQuality, final SurfaceHolder previewDisplay,
+                                 final int desiredCameraWidth, final int desiredCameraHeight)
     {
         super();
 
@@ -76,12 +83,15 @@ import android.view.SurfaceHolder;
             throw new IllegalArgumentException("previewDisplay must not be null");
         } // if
 
+        mStreamCameraDelegate = streamCameraDelegate;
         mCameraIndex = cameraIndex;
         mUseFlashLight = useFlashLight;
         mPort = port;
         mPreviewSizeIndex = previewSizeIndex;
         mJpegQuality = jpegQuality;
         mPreviewDisplay = previewDisplay;
+        mDesiredCameraWidth = desiredCameraWidth;
+        mDesiredCameraHeight = desiredCameraHeight;
     } // constructor(SurfaceHolder)
 
     private final class WorkHandler extends Handler
@@ -192,7 +202,21 @@ import android.view.SurfaceHolder;
         final Camera.Parameters params = camera.getParameters();
 
         final List<Camera.Size> supportedPreviewSizes = params.getSupportedPreviewSizes();
-        final Camera.Size selectedPreviewSize = supportedPreviewSizes.get(mPreviewSizeIndex);
+        Camera.Size selectedPreviewSize = supportedPreviewSizes.get(mPreviewSizeIndex);
+        for (Camera.Size size : supportedPreviewSizes) {
+            if (size.width >= mDesiredCameraWidth) {
+                selectedPreviewSize = size;
+                break;
+            }
+        }
+        for (Camera.Size size : supportedPreviewSizes) {
+            if (size.width == mDesiredCameraWidth &&
+                size.height == mDesiredCameraHeight) {
+                selectedPreviewSize = size;
+                break;
+            }
+        }
+
         params.setPreviewSize(selectedPreviewSize.width, selectedPreviewSize.height);
 
         if (mUseFlashLight)
@@ -236,6 +260,7 @@ import android.view.SurfaceHolder;
 
         final MJpegHttpStreamer streamer = new MJpegHttpStreamer(mPort, mPreviewBufferSize);
         streamer.start();
+        mStreamCameraDelegate.cameraStreamDidStart(mPreviewWidth, mPreviewHeight);
 
         synchronized (mLock)
         {
@@ -312,6 +337,4 @@ import android.view.SurfaceHolder;
         camera.addCallbackBuffer(data);
    } // sendPreviewFrame(byte[], camera, long)
 
-
 } // class CameraStreamer
-
