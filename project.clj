@@ -17,10 +17,9 @@
                  
                  ;; Downgrading memoize version used by core.async
                  [org.clojure/core.memoize "0.5.7"]
-                 [org.clojure/core.async "0.2.374" :exclusions [org.clojure/core.memoize org.clojure/tools.reader]]
+                 [org.clojure/core.async "0.2.374" :exclusions [org.clojure/core.memoize org.clojure/tools.reader org.clojure/clojure]]
 
-                 [org.clojure/tools.logging "0.3.1"] ;; Required by sente -> timbre -> io.aviso -> tools.logging
-                 [com.taoensso/sente "1.8.1" :exclusions [org.clojure/core.async]]]
+                 [org.java-websocket/Java-WebSocket "1.3.0"]]
   :profiles {:default [:dev]
 
              :dev

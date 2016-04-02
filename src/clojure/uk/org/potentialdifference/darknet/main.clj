@@ -1,5 +1,5 @@
 (ns uk.org.potentialdifference.darknet.main
-  (:require [clojure.core.async :refer [<! >! put! close! go]]
+  (:require [clojure.core.async :refer [<! >! put! close! go go-loop]]
             [neko.activity :refer [defactivity set-content-view!]]
             [neko.debug :refer [*a]]
             [neko.find-view :refer [find-view]]
@@ -8,7 +8,8 @@
             [neko.resource :as res]
             [neko.threading :refer [on-ui]]
             [neko.intent :as intent]
-            [taoensso.sente  :as sente])
+            [uk.org.potentialdifference.darknet.config :refer [config]]
+            [uk.org.potentialdifference.darknet.websocket :as websocket])
   (:import android.widget.EditText
            android.view.WindowManager$LayoutParams))
 
@@ -30,6 +31,11 @@
     (.superOnCreate this bundle)
     (fullscreen! this)
     (keep-screen-on! this)
+    (let [chan (websocket/client (:ws-url config))]
+      (go-loop []
+        (when-let [message (<! chan)]
+          (on-ui (toast message))
+          (recur))))
     (on-ui
         (set-content-view! (*a)
           [:linear-layout {:orientation :vertical
