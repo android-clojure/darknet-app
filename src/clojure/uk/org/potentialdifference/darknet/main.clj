@@ -21,7 +21,7 @@
 
 (defn publish-camera-stream! [^Activity activity options]
   (.startActivity activity
-    (intent/intent activity com.foxdogstudios.peepers.StreamCameraActivity
+    (intent/intent activity '.PublishCameraStreamActivity
                    options)))
 
 (defn subscribe-camera-stream! [^Activity activity options]

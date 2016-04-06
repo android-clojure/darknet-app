@@ -34,7 +34,7 @@ import android.view.SurfaceHolder;
 
 import uk.org.potentialdifference.darknet.StreamCameraDelegate;
 
-/* package */ final class CameraStreamer extends Object
+/* package */ public final class CameraStreamer extends Object
 {
     private static final String TAG = CameraStreamer.class.getSimpleName();
 
@@ -72,7 +72,7 @@ import uk.org.potentialdifference.darknet.StreamCameraDelegate;
     private int mDesiredCameraHeight;
     private StreamCameraDelegate mStreamCameraDelegate;
 
-    /* package */ CameraStreamer(final StreamCameraDelegate streamCameraDelegate, final int cameraIndex, final boolean useFlashLight, final int port,
+    /* package */ public CameraStreamer(final StreamCameraDelegate streamCameraDelegate, final int cameraIndex, final boolean useFlashLight, final int port,
                                  final int previewSizeIndex, final int jpegQuality, final SurfaceHolder previewDisplay,
                                  final int desiredCameraWidth, final int desiredCameraHeight)
     {
@@ -119,7 +119,7 @@ import uk.org.potentialdifference.darknet.StreamCameraDelegate;
         } // handleMessage(Message)
     } // class WorkHandler
 
-    /* package */ void start()
+    /* package */ public void start()
     {
         synchronized (mLock)
         {
@@ -143,7 +143,7 @@ import uk.org.potentialdifference.darknet.StreamCameraDelegate;
      *  execution of stop() or shortly after it returns. stop() should
      *  be called on the main thread.
      */
-    /* package */ void stop()
+    /* package */ public void stop()
     {
         synchronized (mLock)
         {
