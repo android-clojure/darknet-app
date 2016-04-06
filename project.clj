@@ -19,7 +19,9 @@
                  [org.clojure/core.memoize "0.5.7"]
                  [org.clojure/core.async "0.2.374" :exclusions [org.clojure/core.memoize org.clojure/tools.reader org.clojure/clojure]]
 
-                 [org.java-websocket/Java-WebSocket "1.3.0"]]
+                 [org.java-websocket/Java-WebSocket "1.3.0"]
+
+                 [cheshire "5.5.0"]]
   :profiles {:default [:dev]
 
              :dev
