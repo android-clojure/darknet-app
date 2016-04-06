@@ -6,7 +6,8 @@
             [neko.notify :refer [toast]]
             [neko.resource :as res]
             [neko.threading :refer [on-ui]])
-  (:import [android.view SurfaceHolder]))
+  (:import [android.graphics Color]
+           [android.view SurfaceHolder]))
 
 (defactivity uk.org.potentialdifference.darknet.PublishCameraStreamActivity
   :key :publish-camera-stream
@@ -15,10 +16,11 @@
     (.superOnCreate this bundle)
     (on-ui
         (set-content-view! (*a)
-          [:surface-view {:orientation :vertical
-                          :id ::camera
-                          :layout-width :fill
-                          :layout-height :fill}]))
+          [:frame-layout {:background-color Color/BLACK}
+           [:surface-view {:orientation :vertical
+                           :id ::camera
+                           :layout-width :fill
+                           :layout-height :fill}]]))
     (doto (.getHolder (find-view this ::camera))
       (.setType SurfaceHolder/SURFACE_TYPE_PUSH_BUFFERS)
       (.addCallback this))))
