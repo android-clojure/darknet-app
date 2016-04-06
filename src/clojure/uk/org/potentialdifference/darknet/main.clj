@@ -33,6 +33,10 @@
   (.startActivity activity
     (intent/intent activity '.MainActivity options)))
 
+(defn web-page! [^Activity activity options]
+  (.startActivity activity
+    (intent/intent activity '.WebActivity options)))
+
 (defactivity uk.org.potentialdifference.darknet.MainActivity
   :key :main
   :features [:no-title]
@@ -46,6 +50,7 @@
                            "startCameraStream" (publish-camera-stream! this instruction)
                            "streamVideo" (subscribe-camera-stream! this instruction)
                            "stop" (back-to-home! this instruction)
+                           "openWebPage" (web-page! this instruction)
                            :default)))]
       (helper/fullscreen! this)
       (helper/keep-screen-on! this)

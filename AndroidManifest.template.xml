@@ -38,6 +38,7 @@
     
     <activity android:name=".PublishCameraStreamActivity"></activity>
     <activity android:name=".SubscribeCameraStreamActivity"></activity>
+    <activity android:name=".WebActivity"></activity>
   </application>
 
   {{#debug-build}}
