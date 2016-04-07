@@ -57,7 +57,7 @@
     (.superOnCreate this bundle)
     (let [on-message (fn [str]
                        (let [instruction (->instruction str)]
-                         #_(on-ui (toast (pr-str instruction)))
+                         (on-ui (toast (pr-str instruction)))
                          (case (:message instruction)
                            "startCameraStream" (create-camera-stream! this instruction)
                            "streamVideo" (view-camera-stream! this instruction)

@@ -202,22 +202,18 @@ import uk.org.potentialdifference.darknet.StreamCameraDelegate;
         final Camera.Parameters params = camera.getParameters();
 
         final List<Camera.Size> supportedPreviewSizes = params.getSupportedPreviewSizes();
-        Camera.Size selectedPreviewSize = supportedPreviewSizes.get(mPreviewSizeIndex);
-        for (Camera.Size size : supportedPreviewSizes) {
-            if (size.width >= mDesiredCameraWidth) {
-                selectedPreviewSize = size;
-                break;
-            }
-        }
+        Camera.Size previewSize = supportedPreviewSizes.get(mPreviewSizeIndex);
         for (Camera.Size size : supportedPreviewSizes) {
             if (size.width == mDesiredCameraWidth &&
                 size.height == mDesiredCameraHeight) {
-                selectedPreviewSize = size;
+                previewSize = size;
                 break;
             }
         }
 
-        params.setPreviewSize(selectedPreviewSize.width, selectedPreviewSize.height);
+        mPreviewWidth = previewSize.width;
+        mPreviewHeight = previewSize.height;
+        params.setPreviewSize(mPreviewWidth, mPreviewHeight);
 
         if (mUseFlashLight)
         {
@@ -240,9 +236,7 @@ import uk.org.potentialdifference.darknet.StreamCameraDelegate;
 
         // Set up preview callback
         mPreviewFormat = params.getPreviewFormat();
-        final Camera.Size previewSize = params.getPreviewSize();
-        mPreviewWidth = previewSize.width;
-        mPreviewHeight = previewSize.height;
+
         final int BITS_PER_BYTE = 8;
         final int bytesPerPixel = ImageFormat.getBitsPerPixel(mPreviewFormat) / BITS_PER_BYTE;
         // XXX: According to the documentation the buffer size can be

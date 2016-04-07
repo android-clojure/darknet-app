@@ -4,7 +4,6 @@
             [neko.debug :refer [*a]]
             [neko.find-view :refer [find-view]]
             [neko.log :as log]
-            [neko.notify :refer [toast]]
             [neko.resource :as res]
             [neko.threading :refer [on-ui]]
             [uk.org.potentialdifference.darknet.activity-helpers :as helper]
@@ -13,6 +12,8 @@
   (:import [android.graphics Color]
            [android.view SurfaceHolder]
            [android.view SurfaceView]
+           [android.util DisplayMetrics]
+           [android.view ViewGroup$LayoutParams]
            [uk.org.potentialdifference.darknet StreamCameraDelegate]
            [com.foxdogstudios.peepers CameraStreamer]))
 
@@ -27,7 +28,9 @@
 
 (defn new-camera-streamer [^StreamCameraDelegate delegate
                            index port
-                           ^SurfaceHolder holder]
+                           ^SurfaceHolder holder
+                           desired-width
+                           desired-height]
   (let [preview-size-index (int 0)
         jpeg-quality (int 40)]
     (CameraStreamer.
@@ -38,8 +41,15 @@
      (int preview-size-index)
      (int jpeg-quality)
      holder
-     (int 800)
-     (int 480))))
+     desired-width
+     desired-height)))
+
+(defn fit-within [fit-w fit-h within-w within-h]
+  (let [aspect-ratio (/ fit-w fit-h)
+        within-ratio (/ within-w within-h)]
+    (if (> aspect-ratio within-ratio)
+      [within-w (int (/ within-w aspect-ratio))]
+      [(int (* within-h aspect-ratio)) within-h])))
 
 (defactivity uk.org.potentialdifference.darknet.CreateCameraStreamActivity
   :key :create-camera-stream
@@ -57,23 +67,34 @@
       (on-ui
           (set-content-view! (*a)
             [:frame-layout {:background-color Color/BLACK}
-             [:surface-view {:id ::camera
+             [:surface-view {:id ::preview
                              :layout-width :fill
                              :layout-height :fill}]]))
-      (doto ^SurfaceHolder (.getHolder ^SurfaceView (find-view this ::camera))
+      (doto ^SurfaceHolder (.getHolder ^SurfaceView (find-view this ::preview))
         (.setType SurfaceHolder/SURFACE_TYPE_PUSH_BUFFERS)
         (.addCallback this))))
 
-  (surfaceChanged [this holder fmt width height]
-                  (on-ui (toast (format "surfaceChanged %d x %d" width height))))
+  (surfaceChanged [this holder fmt width height])
   (surfaceCreated [this holder]
-                  (reset! camera-streamer (new-camera-streamer this 0 8085 holder))
+                  (reset! camera-streamer (new-camera-streamer this 0 8085 holder
+                                                               (get @intent-options :width)
+                                                               (get @intent-options :height)))
                   (.start ^CameraStreamer @camera-streamer))
   (surfaceDestroyed [this holder]
-                    (on-ui (toast "surfaceDestroyed"))
                     (.stop ^CameraStreamer @camera-streamer))
-  (cameraStreamDidStart [this width height]
-                        (on-ui (toast (format "cameraStreamDidStart %d x %d" width height)))
-                        (let [to (get @intent-options :to)
+  (cameraStreamDidStart [^Activity this width height]
+                        (let [^SurfaceView surface-view (find-view this ::preview)
+                              ^DisplayMetrics screen (.getDisplayMetrics (.getResources this))
+                              ^ViewGroup$LayoutParams params (.getLayoutParams surface-view)
+                              [fit-w fit-h] (fit-within width height
+                                                        (.-widthPixels screen)
+                                                        (.-heightPixels screen))
+                              to   (get @intent-options :to)
                               from (get @intent-options :from)]
+                          (set! (.-width params) (int fit-w))
+                          (set! (.-height params) (int fit-h))
+                          (on-ui
+                              (doto surface-view
+                                (.setLayoutParams params)
+                                (.requestLayout)))
                           (server/stream-video from to width height))))
