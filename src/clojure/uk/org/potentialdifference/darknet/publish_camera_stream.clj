@@ -8,9 +8,11 @@
             [neko.resource :as res]
             [neko.threading :refer [on-ui]]
             [uk.org.potentialdifference.darknet.activity-helpers :as helper]
-            [neko.ui.mapping :refer [defelement]])
+            [neko.ui.mapping :refer [defelement]]
+            [uk.org.potentialdifference.darknet.server :as server])
   (:import [android.graphics Color]
            [android.view SurfaceHolder]
+           [android.view SurfaceView]
            [uk.org.potentialdifference.darknet StreamCameraDelegate]
            [com.foxdogstudios.peepers CameraStreamer]))
 
@@ -19,6 +21,9 @@
 
 (def camera-streamer
   (atom nil))
+
+(def intent-options
+  (atom {}))
 
 (defn new-camera-streamer [^StreamCameraDelegate delegate
                            index port
@@ -45,6 +50,7 @@
   (onCreate [this bundle]
     (.superOnCreate this bundle)
     (let [options (like-map (.getIntent this))]
+      (reset! intent-options options)
       (helper/fullscreen! this)
       (helper/keep-screen-on! this)
       (helper/landscape! this)
@@ -54,17 +60,20 @@
              [:surface-view {:id ::camera
                              :layout-width :fill
                              :layout-height :fill}]]))
-      (doto (.getHolder (find-view this ::camera))
+      (doto ^SurfaceHolder (.getHolder ^SurfaceView (find-view this ::camera))
         (.setType SurfaceHolder/SURFACE_TYPE_PUSH_BUFFERS)
         (.addCallback this))))
 
   (surfaceChanged [this holder fmt width height]
                   (on-ui (toast (format "surfaceChanged %d x %d" width height))))
   (surfaceCreated [this holder]
-                  (reset! camera-streamer (new-camera-streamer this 0 8080 holder))
-                  (.start @camera-streamer))
+                  (reset! camera-streamer (new-camera-streamer this 0 8085 holder))
+                  (.start ^CameraStreamer @camera-streamer))
   (surfaceDestroyed [this holder]
                     (on-ui (toast "surfaceDestroyed"))
-                    (.stop @camera-streamer))
+                    (.stop ^CameraStreamer @camera-streamer))
   (cameraStreamDidStart [this width height]
-                        (on-ui (toast "cameraStreamDidStart"))))
+                        (on-ui (toast (format "cameraStreamDidStart %d x %d" width height)))
+                        (let [to (get @intent-options :to)
+                              from (get @intent-options :from)]
+                          (server/stream-video from to width height))))

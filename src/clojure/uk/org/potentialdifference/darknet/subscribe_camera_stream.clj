@@ -34,15 +34,24 @@
       (on-ui
           (set-content-view! (*a)
             [:frame-layout {:background-color Color/BLACK}
-             [:mjpeg-view {:id ::mjpeg-view}]
-             [:text-view {:layout-width :wrap
-                          :background-color Color/WHITE
-                          :text "Test text view"
-                          :gravity :top}]]))
+             [:mjpeg-view {:id ::mjpeg-view}]]))
       (future
-        (let [stream (new MjpegInputStream (io/input-stream (get options :url)))
+        (let [stream (new MjpegInputStream (io/input-stream (get options :from)))
               ^MjpegView mjpeg-view (find-view this ::mjpeg-view)]
           (on-ui
               (doto mjpeg-view
+                (.setResolution (get options :width)
+                                (get options :height))
                 (.setSource stream)
-                (.setDisplayMode MjpegView/SIZE_BEST_FIT))))))))
+                (.setDisplayMode MjpegView/SIZE_BEST_FIT)))))))
+
+  (onPause [this]
+    (.superOnPause this)
+    (let [^MjpegView mjpeg-view (find-view this ::mjpeg-view)]
+      (when (.isStreaming mjpeg-view)
+        (.stopPlayback mjpeg-view))))
+
+  (onDestroy [this]
+             (let [^MjpegView mjpeg-view (find-view this ::mjpeg-view)]
+               (.freeCameraMemory mjpeg-view)
+               (.superOnDestroy this))))

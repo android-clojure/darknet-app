@@ -1,5 +1,4 @@
 (ns uk.org.potentialdifference.darknet.websocket
-  (:require [clojure.core.async :refer [chan close! put! go-loop >! <! timeout go]])
   (:import [org.java_websocket.client WebSocketClient]
            [org.java_websocket.drafts Draft_10]
            [java.net URI]))

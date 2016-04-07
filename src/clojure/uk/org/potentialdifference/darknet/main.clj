@@ -16,8 +16,19 @@
 
 (res/import-all)
 
+(defn parse-long [x]
+  (Long/parseLong x))
+
+(defn parse-vals [coll kvs]
+  (reduce (fn [m [k v]]
+            (cond-> m
+              (contains? m k)
+              (update-in [k] v))) coll kvs))
+
 (defn ->instruction [str]
-  (parse-string str true))
+  (-> (parse-string str true)
+      (parse-vals {:width parse-long
+                   :height parse-long})))
 
 (defn publish-camera-stream! [^Activity activity options]
   (.startActivity activity
@@ -44,8 +55,8 @@
   (onCreate [this bundle]
     (.superOnCreate this bundle)
     (let [on-message (fn [str]
-                       (on-ui (toast str))
                        (let [instruction (->instruction str)]
+                         #_(on-ui (toast (pr-str instruction)))
                          (case (:message instruction)
                            "startCameraStream" (publish-camera-stream! this instruction)
                            "streamVideo" (subscribe-camera-stream! this instruction)
@@ -59,7 +70,7 @@
                           {:on-open (fn [_])
                            :on-close (fn [code reason remote])
                            :on-message on-message
-                           :on-error (fn [e] (on-ui (toast (.getMessage e))))})
+                           :on-error (fn [e] #_(on-ui (toast (.getMessage e))))})
       (on-ui
           (set-content-view! (*a)
             [:linear-layout {:orientation :vertical

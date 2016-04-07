@@ -11,17 +11,13 @@
   :javac-options ["-target" "1.6" "-source" "1.6" "-Xlint:-options"]
   :plugins [[lein-droid "0.4.3" :exclusions [org.clojure/clojure]]]
 
-  :dependencies [
-                 [org.clojure-android/clojure "1.7.0-r4"]
+  :dependencies [[org.clojure-android/clojure "1.7.0-r4"]
                  [neko/neko "4.0.0-alpha5"]
-                 
-                 ;; Downgrading memoize version used by core.async
-                 [org.clojure/core.memoize "0.5.7"]
-                 [org.clojure/core.async "0.2.374" :exclusions [org.clojure/core.memoize org.clojure/tools.reader org.clojure/clojure]]
-
                  [org.java-websocket/Java-WebSocket "1.3.0"]
+                 [cheshire "5.5.0" :exclusions [org.clojure/clojure]]
 
-                 [cheshire "5.5.0"]]
+                 [happy "0.5.2"]
+                 [com.squareup.okhttp/okhttp "2.5.0"]]
   :profiles {:default [:dev]
 
              :dev
@@ -38,6 +34,7 @@
                                           "cljs.core.async.impl.ioc-macros"
                                           "taoensso.sente.packers.transit"
                                           "taoensso.timbre.tools.logging"
+                                          "happy.representor.transit"
                                           #"taoensso\.timbre\.appenders\..*"
                                           #"taoensso\.sente\.server-adapters\..*"]
                          :rename-manifest-package "uk.org.potentialdifference.darknet.debug"
