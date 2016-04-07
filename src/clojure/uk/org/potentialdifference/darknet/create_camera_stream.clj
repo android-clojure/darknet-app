@@ -1,4 +1,4 @@
-(ns uk.org.potentialdifference.darknet.publish-camera-stream
+(ns uk.org.potentialdifference.darknet.create-camera-stream
   (:require [neko.activity :refer [defactivity set-content-view!]]
             [neko.data :refer [like-map]]
             [neko.debug :refer [*a]]
@@ -41,8 +41,8 @@
      (int 800)
      (int 480))))
 
-(defactivity uk.org.potentialdifference.darknet.PublishCameraStreamActivity
-  :key :publish-camera-stream
+(defactivity uk.org.potentialdifference.darknet.CreateCameraStreamActivity
+  :key :create-camera-stream
   :features [:no-title]
   :implements [android.view.SurfaceHolder$Callback
                uk.org.potentialdifference.darknet.StreamCameraDelegate]

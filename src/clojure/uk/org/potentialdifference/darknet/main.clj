@@ -30,9 +30,9 @@
       (parse-vals {:width parse-long
                    :height parse-long})))
 
-(defn publish-camera-stream! [^Activity activity options]
+(defn create-camera-stream! [^Activity activity options]
   (.startActivity activity
-    (intent/intent activity '.PublishCameraStreamActivity
+    (intent/intent activity '.CreateCameraStreamActivity
                    options)))
 
 (defn view-camera-stream! [^Activity activity options]
@@ -58,7 +58,7 @@
                        (let [instruction (->instruction str)]
                          #_(on-ui (toast (pr-str instruction)))
                          (case (:message instruction)
-                           "startCameraStream" (publish-camera-stream! this instruction)
+                           "startCameraStream" (create-camera-stream! this instruction)
                            "streamVideo" (view-camera-stream! this instruction)
                            "stop" (back-to-home! this instruction)
                            "openWebPage" (web-page! this instruction)
@@ -83,5 +83,5 @@
              [:button {:text "Publish Camera Stream",
                        :on-click
                        (fn [^android.widget.Button b]
-                         (publish-camera-stream! this {:width 800 :height 480}))}]])))))
+                         (create-camera-stream! this {:width 800 :height 480}))}]])))))
 

@@ -36,7 +36,7 @@
         android:screenOrientation="landscape">
     </activity>
     
-    <activity android:name=".PublishCameraStreamActivity"></activity>
+    <activity android:name=".CreateCameraStreamActivity"></activity>
     <activity android:name=".ViewCameraStreamActivity"></activity>
     <activity android:name=".WebActivity"></activity>
   </application>
