@@ -1,4 +1,4 @@
-(ns uk.org.potentialdifference.darknet.subscribe-camera-stream
+(ns uk.org.potentialdifference.darknet.view-camera-stream
   (:require [neko.activity :refer [defactivity set-content-view!]]
             [neko.find-view :refer [find-view]]
             [uk.org.potentialdifference.darknet.activity-helpers :as helper]
@@ -21,8 +21,8 @@
   :inherits android.view.SurfaceView
   :traits [:id])
 
-(defactivity uk.org.potentialdifference.darknet.SubscribeCameraStreamActivity
-  :key :subscribe-camera-stream
+(defactivity uk.org.potentialdifference.darknet.ViewCameraStreamActivity
+  :key :view-camera-stream
   :features [:no-title]
   
   (onCreate [this bundle]

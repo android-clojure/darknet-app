@@ -35,9 +35,9 @@
     (intent/intent activity '.PublishCameraStreamActivity
                    options)))
 
-(defn subscribe-camera-stream! [^Activity activity options]
+(defn view-camera-stream! [^Activity activity options]
   (.startActivity activity
-    (intent/intent activity '.SubscribeCameraStreamActivity
+    (intent/intent activity '.ViewCameraStreamActivity
                    options)))
 
 (defn back-to-home! [^Activity activity options]
@@ -59,7 +59,7 @@
                          #_(on-ui (toast (pr-str instruction)))
                          (case (:message instruction)
                            "startCameraStream" (publish-camera-stream! this instruction)
-                           "streamVideo" (subscribe-camera-stream! this instruction)
+                           "streamVideo" (view-camera-stream! this instruction)
                            "stop" (back-to-home! this instruction)
                            "openWebPage" (web-page! this instruction)
                            :default)))]
@@ -79,7 +79,7 @@
              [:button {:text "View Camera Stream",
                        :on-click
                        (fn [^android.widget.Button b]
-                         (subscribe-camera-stream! this {:url "http://webcam1.lpl.org/axis-cgi/mjpg/video.cgi"}))}]
+                         (view-camera-stream! this {:url "http://webcam1.lpl.org/axis-cgi/mjpg/video.cgi"}))}]
              [:button {:text "Publish Camera Stream",
                        :on-click
                        (fn [^android.widget.Button b]
