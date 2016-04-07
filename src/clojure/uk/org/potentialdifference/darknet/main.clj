@@ -10,6 +10,7 @@
             [uk.org.potentialdifference.darknet.config :refer [config]]
             [uk.org.potentialdifference.darknet.websocket :as websocket]
             [uk.org.potentialdifference.darknet.activity-helpers :as helper]
+            [uk.org.potentialdifference.darknet.camera :as camera]
             [cheshire.core :refer [parse-string]])
   (:import [android.app Activity]
            android.widget.EditText))
@@ -62,7 +63,8 @@
                            "streamVideo" (view-camera-stream! this instruction)
                            "stop" (back-to-home! this instruction)
                            "openWebPage" (web-page! this instruction)
-                           :default)))]
+                           :default)))
+          sizes (camera/preview-sizes 0)]
       (helper/fullscreen! this)
       (helper/keep-screen-on! this)
       (helper/landscape! this)
@@ -83,5 +85,6 @@
              [:button {:text "Publish Camera Stream",
                        :on-click
                        (fn [^android.widget.Button b]
-                         (create-camera-stream! this {:width 800 :height 480}))}]])))))
+                         (create-camera-stream! this {:width 800 :height 480}))}]
+             [:text-view {:text (pr-str sizes)}]])))))
 
