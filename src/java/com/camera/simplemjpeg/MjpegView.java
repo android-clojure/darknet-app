@@ -170,8 +170,8 @@ public class MjpegView extends SurfaceView implements SurfaceHolder.Callback {
 
                         }
 
-                    } catch (IOException e) {
-
+                    } catch (Throwable e) {
+                        
                     } finally {
                         if (c != null) mSurfaceHolder.unlockCanvasAndPost(c);
                     }

@@ -4,7 +4,7 @@
             [neko.data :refer [like-map]]
             [neko.find-view :refer [find-view]]
             [neko.log :as log]
-            [neko.notify :refer [toast]]
+            #_[neko.notify :refer [toast]]
             [neko.resource :as res]
             [neko.threading :refer [on-ui]]
             [neko.intent :as intent]

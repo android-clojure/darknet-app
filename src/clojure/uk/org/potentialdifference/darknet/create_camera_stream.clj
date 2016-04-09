@@ -73,7 +73,7 @@
       (doto ^SurfaceHolder (.getHolder ^SurfaceView (find-view this ::preview))
         (.setType SurfaceHolder/SURFACE_TYPE_PUSH_BUFFERS)
         (.addCallback this))))
-
+  
   (surfaceChanged [this holder fmt width height])
   (surfaceCreated [this holder]
                   (reset! camera-streamer (new-camera-streamer this 0 8085 holder
