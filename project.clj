@@ -22,7 +22,7 @@
 
              :dev
              [:android-common :android-user
-              {:dependencies []
+              {:dependencies [[org.clojure/tools.nrepl "0.2.10"]]
                :target-path "target/debug"
                :android {:aot :all-with-unused
                          :aot-exclude-ns ["cider.nrepl.middleware.util.java.parser"

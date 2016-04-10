@@ -256,9 +256,9 @@
                 :text-size 50
                 :text-color Color/GREEN}]])
 
-(defn set-status! [color]
+(defn set-status! [context color]
   (on-ui
-      (if-let [indicator (find-view this ::status-indicator)]
+      (if-let [indicator (find-view context ::status-indicator)]
         (.setTextColor indicator color))))
 
 (defactivity uk.org.potentialdifference.darknet.MainActivity
@@ -297,16 +297,16 @@
                            (:ws-url config)
                            {:on-open (fn [_]
                                        (log/i "darknet" "websocket open")
-                                       (set-status! Color/GREEN))
+                                       (set-status! this Color/GREEN))
                             :on-close (fn [code reason remote]
                                         (log/i "darknet on close" code reason remote)
-                                        (set-status! Color/RED)
+                                        (set-status! this Color/RED)
                                         (Thread/sleep 200)
                                         (new-client))
                             :on-message on-message
                             :on-error (fn [e]
                                         (log/i "darknet on error" (.getMessage e))
-                                        (set-status! Color/RED)
+                                        (set-status! this Color/RED)
                                         (Thread/sleep 200)
                                         (new-client))})))]
           (new-client)))
