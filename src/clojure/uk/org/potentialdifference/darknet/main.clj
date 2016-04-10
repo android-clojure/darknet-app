@@ -29,6 +29,7 @@
            [android.widget VideoView]
            [android.widget ImageView$ScaleType]
            [android.media MediaPlayer$OnCompletionListener]
+           [android.widget LinearLayout$LayoutParams]
            [android.net Uri]
            [android.graphics Color]
            [android.view SurfaceHolder]
@@ -114,7 +115,7 @@
       [within-w (int (/ within-w aspect-ratio))]
       [(int (* within-h aspect-ratio)) within-h])))
 
-(defn fit-screen! [activity view width height]
+(defn fit-screen! [view activity width height]
   (let [^DisplayMetrics screen (.getDisplayMetrics (.getResources activity))
         ^ViewGroup$LayoutParams params (.getLayoutParams view)
         [fit-w fit-h] (fit-within width height
@@ -178,9 +179,18 @@
                                                        (get instruction :width)
                                                        (get instruction :height))]))))
 
+(defn fit-linear-layout! [view]
+  (let [params (LinearLayout$LayoutParams.
+                LinearLayout$LayoutParams/MATCH_PARENT
+                LinearLayout$LayoutParams/MATCH_PARENT)]
+    (set! (.-gravity params) Gravity/CENTER)
+    (set! (.-weight params) (float 1.0))
+    (doto view
+      (.setLayoutParams params))))
 
 (defn image-from-uri [activity uri]
   (let [view (ImageView. activity)]
+    (fit-linear-layout! view)
     (let [f (fn [bytes]
               (let [bitmap (BitmapFactory/decodeByteArray bytes
                                                           0
@@ -214,6 +224,7 @@
                                 MediaPlayer$OnCompletionListener
                                 (onCompletion [this mp]
                                   (default-view activity))))
+    (fit-linear-layout!)
     (.start)))
 
 (defn view-video [activity instruction]
