@@ -80,16 +80,11 @@
     mjpeg-view))
 
 (defn stream-view [^Context activity instruction]
-  (on-ui
-      (replace-view! activity
-                     (make-ui activity
-                              [:linear-layout {:background-color Color/BLACK
-                                               :gravity Gravity/CENTER}
-                               (create-mjpeg-view activity
-                                                  #_"http://webcam1.lpl.org/axis-cgi/mjpg/video.cgi"
-                                                  (get instruction :from)
-                                                  (get instruction :width)
-                                                  (get instruction :height))]))))
+  (create-mjpeg-view activity
+                     #_"http://webcam1.lpl.org/axis-cgi/mjpg/video.cgi"
+                     (get instruction :from)
+                     (get instruction :width)
+                     (get instruction :height)))
 
 
 (defn new-camera-streamer [^StreamCameraDelegate delegate
@@ -161,7 +156,7 @@
                                (doto surface
                                  (.setLayoutParams params)
                                  (.requestLayout)))
-                           (when to
+                           (when (and from to)
                              (server/stream-video from to width height)))))]
         (doto (.getHolder surface)
           (.setType SurfaceHolder/SURFACE_TYPE_PUSH_BUFFERS)
@@ -169,17 +164,12 @@
     surface))
 
 (defn camera-view [activity instruction]
-  (on-ui
-      (replace-view! activity
-                     (make-ui activity
-                              [:linear-layout {:background-color Color/BLACK
-                                               :gravity Gravity/CENTER}
-                               (create-preview-surface activity
-                                                       (get instruction :camera)
-                                                       (get instruction :from)
-                                                       (get instruction :to)
-                                                       (get instruction :width)
-                                                       (get instruction :height))]))))
+  (create-preview-surface activity
+                          (get instruction :camera)
+                          (get instruction :from)
+                          (get instruction :to)
+                          (get instruction :width)
+                          (get instruction :height)))
 
 (defn fit-linear-layout! [view]
   (let [params (LinearLayout$LayoutParams.
@@ -232,7 +222,7 @@
 (defn video-from-path [activity path]
   (setup-video-view (VideoView. activity) activity path))
 
-(defn save-local! [activity instruction]
+(defn save-locally! [activity instruction]
   (when-let [name (:name instruction)]
     (when-let [url (:url instruction)]
       (server/get-bytes url
@@ -242,6 +232,8 @@
 (defn layout [activity view]
   (make-ui activity
            [:linear-layout {:background-color Color/BLACK
+                            :layout-width :fill
+                            :layout-height :fill
                             :gravity Gravity/CENTER}
             view]))
 
@@ -268,19 +260,19 @@
   (onCreate [^Activity this bundle]
     (.superOnCreate this bundle)
     (let [on-message (fn [str]
-                       (let [instruction (->instruction str)]
+                       (let [instruction (->instruction str)
+                             sv (fn [view] ;; Menononic: swap-view!
+                                  (swap-view! this view))]
                          (log/i "darknet" instruction)
-                         (case (:message instruction)
-                           "startCameraStream" (do (log/i "startCameraStream " instruction)
-                                                   (camera-view this instruction))
-                           "streamVideo" (stream-view this instruction)
-                           ;; "displayImage" (view-image this instruction)
-                           ;; "viewVideo" (view-video this instruction)
-                           "save" (save-local! this instruction)
-                           "viewRemote" (on-ui (swap-view! this (view-remote this instruction)))
-                           "viewLocal" (on-ui (swap-view! this (view-local this instruction)))
-                           "stop" (default-view this)
-                           :default)))
+                         (on-ui
+                             (case (:message instruction)
+                               "streamCamera" (sv (camera-view this instruction))
+                               "viewStream" (sv (stream-view this instruction))
+                               "saveLocally" (save-locally! this instruction)
+                               "viewRemote" (sv (view-remote this instruction))
+                               "viewLocal" (sv (view-local this instruction))
+                               "stop" (sv (default-view this))
+                               :default))))
           sizes {:rear (camera/preview-sizes 0)
                  :front (camera/preview-sizes 1)}]
       (helper/fullscreen! this)
@@ -300,6 +292,7 @@
       (on-ui
           (set-content-view! (*a)
             [:linear-layout {:id ::container
+                             :background-color Color/BLACK
                              :orientation :vertical
                              :layout-width :fill
                              :layout-height :fill}
