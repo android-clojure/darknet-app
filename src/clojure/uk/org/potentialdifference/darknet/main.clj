@@ -190,34 +190,22 @@
     (doto view
       (.setLayoutParams params))))
 
-(defn set-image-bitmap! [view bytes]
-  (let [bitmap (BitmapFactory/decodeByteArray bytes
-                                              0
-                                              (count bytes))]
-    (on-ui
-        (.setImageBitmap view bitmap))))
-
-(defn image-from-uri [activity uri]
+(defn image-from-url [activity url]
   (let [view (ImageView. activity)]
     (fit-linear-layout! view)
     (let [f (fn [bytes]
-              (set-image-bitmap! view bytes))]
-      (server/get-bytes uri f))
+              (let [bitmap (BitmapFactory/decodeByteArray bytes
+                                                          0
+                                                          (count bytes))]
+                (on-ui
+                    (.setImageBitmap view bitmap))))]
+      (server/get-bytes url f))
     view))
 
 (defn image-from-path [activity path]
   (doto (ImageView. activity)
     (fit-linear-layout!)
     (.setImageBitmap (BitmapFactory/decodeFile path))))
-
-(defn view-image [activity intruction]
-  (on-ui
-      (replace-view! activity
-                     (make-ui activity
-                              [:linear-layout {:background-color Color/BLACK
-                                               :gravity Gravity/CENTER}
-                               (image-from-uri activity
-                                               "http://whyquit.com/freedom/ImageLibrary/Frogs/frog32.jpg")]))))
 
 (defn default-view [activity]
   (replace-view! activity
@@ -227,7 +215,7 @@
 (defn setVideoSource [video source]
   (log/i "darknet setting video source" source)
   (if (.startsWith source "http")
-    (.setVideoUri video (Uri/parse source))
+    (.setVideoURI video (Uri/parse source))
     (.setVideoPath video source)))
 
 (defn setup-video-view [view activity path]
@@ -264,6 +252,12 @@
         "image" (layout activity (image-from-path activity path))
         "video" (layout activity (video-from-path activity path))))))
 
+(defn view-remote [activity instruction]
+  (when-let [url (:url instruction)]
+    (case (:type instruction)
+      "image" (layout activity (image-from-url activity url))
+      "video" (layout activity (video-from-path activity url)))))
+
 (defn swap-view! [activity view]
   (replace-view! activity view))
 
@@ -275,13 +269,15 @@
     (.superOnCreate this bundle)
     (let [on-message (fn [str]
                        (let [instruction (->instruction str)]
+                         (log/i "darknet" instruction)
                          (case (:message instruction)
                            "startCameraStream" (do (log/i "startCameraStream " instruction)
                                                    (camera-view this instruction))
                            "streamVideo" (stream-view this instruction)
-                           "displayImage" (view-image this instruction)
+                           ;; "displayImage" (view-image this instruction)
                            ;; "viewVideo" (view-video this instruction)
                            "save" (save-local! this instruction)
+                           "viewRemote" (on-ui (swap-view! this (view-remote this instruction)))
                            "viewLocal" (on-ui (swap-view! this (view-local this instruction)))
                            "stop" (default-view this)
                            :default)))
