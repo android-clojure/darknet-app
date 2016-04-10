@@ -14,6 +14,7 @@
             [uk.org.potentialdifference.darknet.activity-helpers :as helper]
             [uk.org.potentialdifference.darknet.camera :as camera]
             [uk.org.potentialdifference.darknet.server :as server]
+            [uk.org.potentialdifference.darknet.storage :as storage]
             [cheshire.core :refer [parse-string]]
             [clojure.java.io :as io]
             [clojure.pprint :refer [pprint]])
@@ -236,6 +237,17 @@
                                (video-from-uri activity
                                                "http://192.168.0.6:8080/public/small.mp4")]))))
 
+(defn save-to-local! [activity instruction]
+  (when-let [name (:name instruction)]
+    (when-let [url (:url instruction)]
+      (server/get-bytes url
+                        (fn [bytes]
+                          (log/i "darknet stream" bytes)
+                          (storage/write-bytes! bytes name))))))
+
+(defn view-local [activity instruction]
+  (when-let [name (:name instruction)]))
+
 (defactivity uk.org.potentialdifference.darknet.MainActivity
   :key :main
   :features [:no-title]
@@ -250,6 +262,8 @@
                            "streamVideo" (stream-view this instruction)
                            "displayImage" (view-image this instruction)
                            "viewVideo" (view-video this instruction)
+                           "saveToLocal" (save-to-local! this instruction)
+                           "viewLocal" (view-local this instruction)
                            "stop" (default-view this)
                            :default)))
           sizes {:rear (camera/preview-sizes 0)
