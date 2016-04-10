@@ -248,6 +248,19 @@
       "image" (layout activity (image-from-url activity url))
       "video" (layout activity (video-from-path activity url)))))
 
+(def idle-screen
+  [:relative-layout {:layout-width :fill
+                     :layout-height :fill}
+   [:text-view {:text " °"
+                :id ::status-indicator
+                :text-size 50
+                :text-color Color/GREEN}]])
+
+(defn set-status! [color]
+  (on-ui
+      (if-let [indicator (find-view this ::status-indicator)]
+        (.setTextColor indicator color))))
+
 (defactivity uk.org.potentialdifference.darknet.MainActivity
   :key :main
   :features [:no-title]
@@ -266,34 +279,44 @@
                                "saveLocally" (save-locally! this instruction)
                                "viewRemote" (sv (view-remote this instruction))
                                "viewLocal" (sv (view-local this instruction))
+                               #_"info" #_(sv (layout [:text-view {:text
+                                                                   (let [out (java.io.StringWriter.)]
+                                                                     (pprint sizes out)
+                                                                     (.toString out))}]))
                                "stop" (sv (layout this [:text-view {:text "..."}]))
                                :default))))
-          sizes {:rear (camera/preview-sizes 0)
+          sizes {:rear  (camera/preview-sizes 0)
                  :front (camera/preview-sizes 1)}]
       (helper/fullscreen! this)
       (helper/keep-screen-on! this)
       (helper/landscape! this)
-      (websocket/connect! (:ws-url config)
-                          {:on-open (fn [_]
-                                      (log/i "darknet" "websocket open" ))
-                           :on-close (fn [code reason remote]
-                                       #_(toast code reason remote)
-                                       (log/i "darknet" code reason remote))
-                           
-                           :on-message on-message
-                           :on-error (fn [e]
-                                       #_(toast (.getMessage e))
-                                       (log/i "darknet" (.getMessage e)))})
+      (let [client (atom nil)]
+        (letfn [(new-client []
+                  (reset! client
+                          (websocket/connect!
+                           (:ws-url config)
+                           {:on-open (fn [_]
+                                       (log/i "darknet" "websocket open")
+                                       (set-status! Color/GREEN))
+                            :on-close (fn [code reason remote]
+                                        (log/i "darknet on close" code reason remote)
+                                        (set-status! Color/RED)
+                                        (Thread/sleep 200)
+                                        (new-client))
+                            :on-message on-message
+                            :on-error (fn [e]
+                                        (log/i "darknet on error" (.getMessage e))
+                                        (set-status! Color/RED)
+                                        (Thread/sleep 200)
+                                        (new-client))})))]
+          (new-client)))
       (on-ui
-          (set-content-view! (*a)
+          (set-content-view! this
             [:linear-layout {:id ::container
                              :background-color Color/BLACK
                              :gravity Gravity/CENTER
                              :orientation :vertical
                              :layout-width :fill
                              :layout-height :fill}
-             [:linear-layout {}
-              [:text-view {:text (let [out (java.io.StringWriter.)]
-                                   (pprint sizes out)
-                                   (.toString out))}]]])))))
+             idle-screen])))))
 
