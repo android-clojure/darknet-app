@@ -13,3 +13,17 @@
                         "content-type" "text/text"}
               :body "payload"}
              {:client (ok/create)})))
+
+(defn get-bytes [url f]
+  (h/GET url {}
+    {:response-body-as :byte-array
+     :client (ok/create)
+     :handler (fn [response]
+                (f (:body response)))}))
+
+(defn get-stream [url f]
+  (h/GET url {}
+    {:response-body-as :stream
+     :client (ok/create)
+     :handler (fn [response]
+                (f (:body response)))}))

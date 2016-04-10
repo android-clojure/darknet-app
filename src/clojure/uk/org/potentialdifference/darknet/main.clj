@@ -15,7 +15,8 @@
             [uk.org.potentialdifference.darknet.camera :as camera]
             [uk.org.potentialdifference.darknet.server :as server]
             [cheshire.core :refer [parse-string]]
-            [clojure.java.io :as io])
+            [clojure.java.io :as io]
+            [clojure.pprint :refer [pprint]])
   (:import [android.app Activity]
            [android.widget Button]
            [android.graphics Color]
@@ -23,6 +24,10 @@
            [android.view ViewGroup]
            [android.view ViewGroup$LayoutParams]
            [android.view Gravity]
+           [android.graphics BitmapFactory]
+           [android.widget ImageView]
+           [android.widget ImageView$ScaleType]
+           [android.net Uri]
            [android.graphics Color]
            [android.view SurfaceHolder]
            [android.view SurfaceView]
@@ -49,7 +54,8 @@
 (defn ->instruction [str]
   (-> (parse-string str true)
       (parse-vals {:width parse-long
-                   :height parse-long})))
+                   :height parse-long
+                   :camera parse-long})))
 
 (defn replace-view! [^Activity this ^View new]
   (on-ui
@@ -106,20 +112,33 @@
       [within-w (int (/ within-w aspect-ratio))]
       [(int (* within-h aspect-ratio)) within-h])))
 
+(defn fit-screen! [activity view width height]
+  (let [^DisplayMetrics screen (.getDisplayMetrics (.getResources activity))
+        ^ViewGroup$LayoutParams params (.getLayoutParams view)
+        [fit-w fit-h] (fit-within width height
+                                  (.-widthPixels screen)
+                                  (.-heightPixels screen))]
+    (set! (.-width params) (int fit-w))
+    (set! (.-height params) (int fit-h))
+    (on-ui
+        (doto view
+          (.setLayoutParams params)
+          (.requestLayout)))))
+
 (def camera-streamer
   (atom nil))
 
 (defelement :surface-view
   :classname android.view.SurfaceView)
 
-(defn create-preview-surface [^Context activity from to width height]
+(defn create-preview-surface [^Context activity camera-index from to width height]
   (let [^SurfaceView surface (SurfaceView. activity)]
     (future
       (let [delegate (reify
                        android.view.SurfaceHolder$Callback
                        (surfaceChanged [this holder fmt width height])
                        (surfaceCreated [this holder]
-                         (reset! camera-streamer (new-camera-streamer this 0 8085 holder width height))
+                         (reset! camera-streamer (new-camera-streamer this camera-index  8085 holder width height))
                          (.start ^CameraStreamer @camera-streamer))
                        (surfaceDestroyed [this holder]
                          (.stop ^CameraStreamer @camera-streamer))
@@ -151,10 +170,35 @@
                               [:linear-layout {:background-color Color/BLACK
                                                :gravity Gravity/CENTER}
                                (create-preview-surface activity
+                                                       (get instruction :camera)
                                                        (get instruction :from)
                                                        (get instruction :to)
                                                        (get instruction :width)
                                                        (get instruction :height))]))))
+
+
+(defn image-from-uri [activity uri]
+  (let [view (ImageView. activity)]
+    (let [f (fn [bytes]
+              (let [bitmap (BitmapFactory/decodeByteArray bytes
+                                                          0
+                                                          (count bytes))]
+                (on-ui
+                  (.setImageBitmap view bitmap)
+                  ;; (.setScaleType view ImageView$ScaleType/CENTER_INSIDE)
+                  ;; (fit-screen! activity view (.getWidth bitmap) (.getHeight bitmap))
+                  )))]
+      (server/get-bytes uri f))
+    view))
+
+(defn view-image [activity intruction]
+  (on-ui
+      (replace-view! activity
+                     (make-ui activity
+                              [:linear-layout {:background-color Color/BLACK
+                                               :gravity Gravity/CENTER}
+                               (image-from-uri activity
+                                               "http://whyquit.com/freedom/ImageLibrary/Frogs/frog32.jpg")]))))
 
 (defn default-view [activity]
   (replace-view! activity
@@ -173,9 +217,11 @@
                            "startCameraStream" (do (log/i "startCameraStream " instruction)
                                                    (camera-view this instruction))
                            "streamVideo" (stream-view this instruction)
+                           "displayImage" (view-image this instruction)
                            "stop" (default-view this)
                            :default)))
-          sizes (camera/preview-sizes 0)]
+          sizes {:rear (camera/preview-sizes 0)
+                 :front (camera/preview-sizes 1)}]
       (helper/fullscreen! this)
       (helper/keep-screen-on! this)
       (helper/landscape! this)
@@ -191,5 +237,7 @@
                              :layout-width :fill
                              :layout-height :fill}
              [:linear-layout {}
-              [:text-view {:text (pr-str sizes)}]]])))))
+              [:text-view {:text (let [out (java.io.StringWriter.)]
+                                   (pprint sizes out)
+                                   (.toString out))}]]])))))
 
