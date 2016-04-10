@@ -6,7 +6,7 @@
 (defn stream-video [from to width height]
   (let [api-key (get config :api-key)
         api-url (get config :api-url)
-        url (str api-url "/broadcast/" to "/streamVideo?from=" from "&width=" width "&height=" height)]
+        url (str api-url "/broadcast/" to "/viewStream?from=" from "&width=" width "&height=" height)]
     (h/send! {:url url
               :method "PUT"
               :headers {"authorization" api-key

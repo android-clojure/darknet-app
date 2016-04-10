@@ -197,16 +197,22 @@
     (fit-linear-layout!)
     (.setImageBitmap (BitmapFactory/decodeFile path))))
 
-(defn default-view [activity]
-  (replace-view! activity
-                 (make-ui activity
-                          [:text-view {:text "Waiting..."}])))
+(defn layout [activity view]
+  (make-ui activity
+           [:linear-layout {:background-color Color/BLACK
+                            :layout-width :fill
+                            :layout-height :fill
+                            :gravity Gravity/CENTER}
+            view]))
 
 (defn setVideoSource [video source]
   (log/i "darknet setting video source" source)
   (if (.startsWith source "http")
     (.setVideoURI video (Uri/parse source))
     (.setVideoPath video source)))
+
+(defn swap-view! [activity view]
+  (replace-view! activity view))
 
 (defn setup-video-view [view activity path]
   (doto view
@@ -215,7 +221,7 @@
     (.setOnCompletionListener (reify
                                 MediaPlayer$OnCompletionListener
                                 (onCompletion [this mp]
-                                  (default-view activity))))
+                                  (swap-view! activity (layout activity [:text-view {:text "..."}])))))
     (.start))
   view)
 
@@ -229,14 +235,6 @@
                         (fn [bytes]
                           (storage/write-bytes! bytes name))))))
 
-(defn layout [activity view]
-  (make-ui activity
-           [:linear-layout {:background-color Color/BLACK
-                            :layout-width :fill
-                            :layout-height :fill
-                            :gravity Gravity/CENTER}
-            view]))
-
 (defn view-local [activity instruction]
   (when-let [name (:name instruction)]
     (when-let [path (storage/local-path name)]
@@ -249,9 +247,6 @@
     (case (:type instruction)
       "image" (layout activity (image-from-url activity url))
       "video" (layout activity (video-from-path activity url)))))
-
-(defn swap-view! [activity view]
-  (replace-view! activity view))
 
 (defactivity uk.org.potentialdifference.darknet.MainActivity
   :key :main
@@ -271,7 +266,7 @@
                                "saveLocally" (save-locally! this instruction)
                                "viewRemote" (sv (view-remote this instruction))
                                "viewLocal" (sv (view-local this instruction))
-                               "stop" (sv (default-view this))
+                               "stop" (sv (layout this [:text-view {:text "..."}]))
                                :default))))
           sizes {:rear (camera/preview-sizes 0)
                  :front (camera/preview-sizes 1)}]
@@ -293,6 +288,7 @@
           (set-content-view! (*a)
             [:linear-layout {:id ::container
                              :background-color Color/BLACK
+                             :gravity Gravity/CENTER
                              :orientation :vertical
                              :layout-width :fill
                              :layout-height :fill}
