@@ -7,6 +7,7 @@
             [neko.threading :refer [on-ui]]
             [neko.log :as log]
             [neko.intent :as intent]
+            [neko.notify :refer [toast]]
             [neko.ui :refer [make-ui]]
             [neko.ui.mapping :refer [defelement]]
             [uk.org.potentialdifference.darknet.config :refer [config]]
@@ -17,7 +18,8 @@
             [uk.org.potentialdifference.darknet.storage :as storage]
             [cheshire.core :refer [parse-string]]
             [clojure.java.io :as io]
-            [clojure.pprint :refer [pprint]])
+            [clojure.pprint :refer [pprint]]
+            [clojure.string :as str])
   (:import [android.app Activity]
            [android.widget Button]
            [android.graphics Color]
@@ -62,11 +64,10 @@
                    :camera parse-long})))
 
 (defn replace-view! [^Activity this ^View new]
-  (on-ui
-      (when-let [^View container (find-view this ::container)]
-        (let [^View old (.getChildAt  container 0)]
-          (.removeView container old)
-          (.addView container new 0)))))
+  (when-let [^View container (find-view this ::container)]
+    (let [^View old (.getChildAt  container 0)]
+      (.removeView container old)
+      (.addView container new 0))))
 
 (defn create-mjpeg-view ^MjpegView [^Context context source-url width height]
   (let [^MjpegView mjpeg-view (new MjpegView context)]
@@ -204,15 +205,10 @@
       (server/get-bytes uri f))
     view))
 
-(defn image-from-file [activity file]
+(defn image-from-path [activity path]
   (doto (ImageView. activity)
     (fit-linear-layout!)
-    (.setImageBitmap (BitmapFactory/decodeFile (.toString (.getAbsolutePath file))))))
-
-(defn image-from-bytes [activity bytes]
-  (doto (ImageView. activity)
-    (fit-linear-layout!)
-    (set-image-bitmap! bytes)))
+    (.setImageBitmap (BitmapFactory/decodeFile path))))
 
 (defn view-image [activity intruction]
   (on-ui
@@ -228,60 +224,48 @@
                  (make-ui activity
                           [:text-view {:text "Waiting..."}])))
 
-(defn video-from-uri [activity uri]
-  (doto (VideoView. activity)
-    (.setVideoURI (Uri/parse uri))
+(defn setVideoSource [video source]
+  (log/i "darknet setting video source" source)
+  (if (.startsWith source "http")
+    (.setVideoUri video (Uri/parse source))
+    (.setVideoPath video source)))
+
+(defn setup-video-view [view activity path]
+  (doto view
+    (fit-linear-layout!)
+    (setVideoSource path)
     (.setOnCompletionListener (reify
                                 MediaPlayer$OnCompletionListener
                                 (onCompletion [this mp]
                                   (default-view activity))))
-    (fit-linear-layout!)
-    (.start)))
-
-(defn view-video [activity instruction]
-  (on-ui
-      (replace-view! activity
-                     (make-ui activity
-                              [:linear-layout {:background-color Color/BLACK
-                                               :gravity Gravity/CENTER}
-                               (video-from-uri activity
-                                               "http://192.168.0.6:8080/public/small.mp4")]))))
+    (.start))
+  view)
 
 (defn video-from-path [activity path]
-  (doto (VideoView. activity)
-    (fit-linear-layout!)
-    (.setVideoPath path)
-    (.setOnCompletionListener (reify
-                                MediaPlayer$OnCompletionListener
-                                (onCompletion [this mp]
-                                  (default-view activity))))
-    (.start)))
+  (setup-video-view (VideoView. activity) activity path))
 
-(defn save-to-local! [activity instruction]
+(defn save-local! [activity instruction]
   (when-let [name (:name instruction)]
     (when-let [url (:url instruction)]
       (server/get-bytes url
                         (fn [bytes]
-                          (log/i "darknet stream" bytes)
                           (storage/write-bytes! bytes name))))))
 
-(defn view-local-image [activity instruction]
-  (when-let [name (:name instruction)]
-    (on-ui
-        (replace-view! activity
-                       (make-ui activity
-                                [:linear-layout {:background-color Color/BLACK
-                                                 :gravity Gravity/CENTER}
-                                 (image-from-file activity (storage/make-file name))])))))
+(defn layout [activity view]
+  (make-ui activity
+           [:linear-layout {:background-color Color/BLACK
+                            :gravity Gravity/CENTER}
+            view]))
 
-(defn view-local-video [activity instruction]
+(defn view-local [activity instruction]
   (when-let [name (:name instruction)]
-    (on-ui
-        (replace-view! activity
-                       (make-ui activity
-                                [:linear-layout {:background-color Color/BLACK
-                                                 :gravity Gravity/CENTER}
-                                 (video-from-path activity (storage/local-path name))])))))
+    (when-let [path (storage/local-path name)]
+      (case (:type instruction)
+        "image" (layout activity (image-from-path activity path))
+        "video" (layout activity (video-from-path activity path))))))
+
+(defn swap-view! [activity view]
+  (replace-view! activity view))
 
 (defactivity uk.org.potentialdifference.darknet.MainActivity
   :key :main
@@ -296,10 +280,9 @@
                                                    (camera-view this instruction))
                            "streamVideo" (stream-view this instruction)
                            "displayImage" (view-image this instruction)
-                           "viewVideo" (view-video this instruction)
-                           "saveToLocal" (save-to-local! this instruction)
-                           "viewLocalImage" (view-local-image this instruction)
-                           "viewLocalVideo" (view-local-video this instruction)
+                           ;; "viewVideo" (view-video this instruction)
+                           "save" (save-local! this instruction)
+                           "viewLocal" (on-ui (swap-view! this (view-local this instruction)))
                            "stop" (default-view this)
                            :default)))
           sizes {:rear (camera/preview-sizes 0)
@@ -308,10 +291,16 @@
       (helper/keep-screen-on! this)
       (helper/landscape! this)
       (websocket/connect! (:ws-url config)
-                          {:on-open (fn [_])
-                           :on-close (fn [code reason remote])
+                          {:on-open (fn [_]
+                                      (log/i "darknet" "websocket open" ))
+                           :on-close (fn [code reason remote]
+                                       #_(toast code reason remote)
+                                       (log/i "darknet" code reason remote))
+                           
                            :on-message on-message
-                           :on-error (fn [e] )})
+                           :on-error (fn [e]
+                                       #_(toast (.getMessage e))
+                                       (log/i "darknet" (.getMessage e)))})
       (on-ui
           (set-content-view! (*a)
             [:linear-layout {:id ::container
