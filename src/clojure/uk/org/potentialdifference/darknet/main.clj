@@ -29,8 +29,8 @@
            [android.util DisplayMetrics]
            [android.content Intent]
            [android.content Context]
-           [com.camera.simplemjpeg MjpegView]
-           [com.camera.simplemjpeg MjpegInputStream]
+           [com.michogarcia.mjpegview MjpegView]
+           [com.michogarcia.mjpegview MjpegInputStream]
            [uk.org.potentialdifference.darknet StreamCameraDelegate]
            [com.foxdogstudios.peepers CameraStreamer]
            android.widget.EditText))
@@ -63,7 +63,7 @@
     (future
       (let [stream (new MjpegInputStream (io/input-stream source-url))]
         (doto mjpeg-view
-          (.setResolution width height)
+          ;; (.setResolution width height)
           (.setSource stream)
           (.setDisplayMode MjpegView/SIZE_BEST_FIT))))
     mjpeg-view))
