@@ -4,6 +4,7 @@
 package com.michogarcia.mjpegview;
 
 import java.io.IOException;
+import java.lang.IllegalStateException;
 
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -165,8 +166,12 @@ public class MjpegView extends SurfaceView implements SurfaceHolder.Callback {
 						}
 					} finally {
 						if (c != null) {
+                                                    try {
 							mSurfaceHolder.unlockCanvasAndPost(c);
 							Log.d(TAG, "UnLock");
+                                                    } catch (IllegalStateException e) {
+                                                        Log.e(TAG, "Caught IllegalStateexception " + e.getMessage());
+                                                    }
 						}
 					}
 					if (sucess) {
