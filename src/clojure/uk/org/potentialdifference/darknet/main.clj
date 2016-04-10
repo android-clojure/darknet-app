@@ -189,20 +189,30 @@
     (doto view
       (.setLayoutParams params))))
 
+(defn set-image-bitmap! [view bytes]
+  (let [bitmap (BitmapFactory/decodeByteArray bytes
+                                              0
+                                              (count bytes))]
+    (on-ui
+        (.setImageBitmap view bitmap))))
+
 (defn image-from-uri [activity uri]
   (let [view (ImageView. activity)]
     (fit-linear-layout! view)
     (let [f (fn [bytes]
-              (let [bitmap (BitmapFactory/decodeByteArray bytes
-                                                          0
-                                                          (count bytes))]
-                (on-ui
-                  (.setImageBitmap view bitmap)
-                  ;; (.setScaleType view ImageView$ScaleType/CENTER_INSIDE)
-                  ;; (fit-screen! activity view (.getWidth bitmap) (.getHeight bitmap))
-                  )))]
+              (set-image-bitmap! view bytes))]
       (server/get-bytes uri f))
     view))
+
+(defn image-from-file [activity file]
+  (doto (ImageView. activity)
+    (fit-linear-layout!)
+    (.setImageBitmap (BitmapFactory/decodeFile (.toString (.getAbsolutePath file))))))
+
+(defn image-from-bytes [activity bytes]
+  (doto (ImageView. activity)
+    (fit-linear-layout!)
+    (set-image-bitmap! bytes)))
 
 (defn view-image [activity intruction]
   (on-ui
@@ -237,6 +247,16 @@
                                (video-from-uri activity
                                                "http://192.168.0.6:8080/public/small.mp4")]))))
 
+(defn video-from-path [activity path]
+  (doto (VideoView. activity)
+    (fit-linear-layout!)
+    (.setVideoPath path)
+    (.setOnCompletionListener (reify
+                                MediaPlayer$OnCompletionListener
+                                (onCompletion [this mp]
+                                  (default-view activity))))
+    (.start)))
+
 (defn save-to-local! [activity instruction]
   (when-let [name (:name instruction)]
     (when-let [url (:url instruction)]
@@ -245,8 +265,23 @@
                           (log/i "darknet stream" bytes)
                           (storage/write-bytes! bytes name))))))
 
-(defn view-local [activity instruction]
-  (when-let [name (:name instruction)]))
+(defn view-local-image [activity instruction]
+  (when-let [name (:name instruction)]
+    (on-ui
+        (replace-view! activity
+                       (make-ui activity
+                                [:linear-layout {:background-color Color/BLACK
+                                                 :gravity Gravity/CENTER}
+                                 (image-from-file activity (storage/make-file name))])))))
+
+(defn view-local-video [activity instruction]
+  (when-let [name (:name instruction)]
+    (on-ui
+        (replace-view! activity
+                       (make-ui activity
+                                [:linear-layout {:background-color Color/BLACK
+                                                 :gravity Gravity/CENTER}
+                                 (video-from-path activity (storage/local-path name))])))))
 
 (defactivity uk.org.potentialdifference.darknet.MainActivity
   :key :main
@@ -263,7 +298,8 @@
                            "displayImage" (view-image this instruction)
                            "viewVideo" (view-video this instruction)
                            "saveToLocal" (save-to-local! this instruction)
-                           "viewLocal" (view-local this instruction)
+                           "viewLocalImage" (view-local-image this instruction)
+                           "viewLocalVideo" (view-local-video this instruction)
                            "stop" (default-view this)
                            :default)))
           sizes {:rear (camera/preview-sizes 0)

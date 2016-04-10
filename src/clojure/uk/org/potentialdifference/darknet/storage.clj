@@ -10,6 +10,11 @@
       (.mkdirs dir))
     file))
 
+(defn local-path [filename]
+  (-> (make-file filename)
+      (.getAbsolutePath)
+      (str)))
+
 (defn write-bytes! [bytes filename]
   (when-let [file (make-file filename)]
     (copy bytes file)))
