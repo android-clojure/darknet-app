@@ -26,7 +26,9 @@
            [android.view Gravity]
            [android.graphics BitmapFactory]
            [android.widget ImageView]
+           [android.widget VideoView]
            [android.widget ImageView$ScaleType]
+           [android.media MediaPlayer$OnCompletionListener]
            [android.net Uri]
            [android.graphics Color]
            [android.view SurfaceHolder]
@@ -205,6 +207,24 @@
                  (make-ui activity
                           [:text-view {:text "Waiting..."}])))
 
+(defn video-from-uri [activity uri]
+  (doto (VideoView. activity)
+    (.setVideoURI (Uri/parse uri))
+    (.setOnCompletionListener (reify
+                                MediaPlayer$OnCompletionListener
+                                (onCompletion [this mp]
+                                  (default-view activity))))
+    (.start)))
+
+(defn view-video [activity instruction]
+  (on-ui
+      (replace-view! activity
+                     (make-ui activity
+                              [:linear-layout {:background-color Color/BLACK
+                                               :gravity Gravity/CENTER}
+                               (video-from-uri activity
+                                               "http://192.168.0.6:8080/public/small.mp4")]))))
+
 (defactivity uk.org.potentialdifference.darknet.MainActivity
   :key :main
   :features [:no-title]
@@ -218,6 +238,7 @@
                                                    (camera-view this instruction))
                            "streamVideo" (stream-view this instruction)
                            "displayImage" (view-image this instruction)
+                           "viewVideo" (view-video this instruction)
                            "stop" (default-view this)
                            :default)))
           sizes {:rear (camera/preview-sizes 0)
