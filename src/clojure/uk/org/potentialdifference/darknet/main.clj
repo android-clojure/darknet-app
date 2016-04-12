@@ -76,7 +76,7 @@
         (doto mjpeg-view
           ;; (.setResolution width height)
           (.setSource stream)
-          (.setDisplayMode MjpegView/SIZE_BEST_FIT))))
+          (.setDisplayMode MjpegView/SIZE_FULLSCREEN))))
     mjpeg-view))
 
 (defn stream-view [^Context activity instruction]
@@ -121,6 +121,9 @@
     (set! (.-width params) (int fit-w))
     (set! (.-height params) (int fit-h))
     (on-ui
+        (toast (format "Fit (%d x %d) to (%d x %d)"
+                       width height
+                       (int fit-w) (int fit-h)))
         (doto view
           (.setLayoutParams params)
           (.requestLayout)))))
@@ -153,10 +156,14 @@
                            (set! (.-width params) (int fit-w))
                            (set! (.-height params) (int fit-h))
                            (on-ui
+                               (toast (format "Fit (%d x %d) to (%d x %d)"
+                                              width height
+                                              (int fit-w) (int fit-h)))
                                (doto surface
                                  (.setLayoutParams params)
                                  (.requestLayout)))
                            (when (and from to)
+                             (log/i "darknet" "stream-video" from to width height)
                              (server/stream-video from to width height)))))]
         (doto (.getHolder surface)
           (.setType SurfaceHolder/SURFACE_TYPE_PUSH_BUFFERS)
@@ -214,13 +221,13 @@
 (defn swap-view! [activity view]
   (replace-view! activity view))
 
-(def idle-screen
+(defn idle-screen [color]
   [:relative-layout {:layout-width :fill
                      :layout-height :fill}
    [:text-view {:text " °"
                 :id ::status-indicator
                 :text-size 50
-                :text-color Color/RED}]])
+                :text-color color}]])
 
 (defn setup-video-view [view activity path]
   (doto view
@@ -230,7 +237,7 @@
      (reify
        MediaPlayer$OnCompletionListener
        (onCompletion [this mp]
-         (swap-view! activity (layout activity idle-screen)))))
+         (swap-view! activity (layout activity (idle-screen Color/GREEN))))))
     (.start))
   view)
 
@@ -272,7 +279,9 @@
   
   (onCreate [^Activity this bundle]
     (.superOnCreate this bundle)
-    (let [on-message (fn [str]
+    (let [sizes {:rear  (camera/preview-sizes 0)
+                 :front (camera/preview-sizes 1)}
+          on-message (fn [str]
                        (let [instruction (->instruction str)
                              sv (fn [view] ;; Menononic: swap-view!
                                   (swap-view! this view))]
@@ -284,19 +293,18 @@
                                "saveLocally" (save-locally! this instruction)
                                "viewRemote" (sv (view-remote this instruction))
                                "viewLocal" (sv (view-local this instruction))
-                               #_"info" #_(sv (layout [:text-view {:text
-                                                                   (let [out (java.io.StringWriter.)]
-                                                                     (pprint sizes out)
-                                                                     (.toString out))}]))
-                               "stop" (sv (layout this idle-screen))
-                               :default))))
-          sizes {:rear  (camera/preview-sizes 0)
-                 :front (camera/preview-sizes 1)}]
+                               "info" (sv (layout this [:text-view {:text
+                                                                    (let [out (java.io.StringWriter.)]
+                                                                      (pprint sizes out)
+                                                                      (.toString out))}]))
+                               "stop" (sv (layout this (idle-screen Color/GREEN)))
+                               :default))))]
       (helper/fullscreen! this)
       (helper/keep-screen-on! this)
       (helper/landscape! this)
       (let [client (atom nil)]
         (letfn [(new-client []
+                  (log/i "darknet" "new client called")
                   (reset! client
                           (websocket/connect!
                            (:ws-url config)
@@ -306,13 +314,13 @@
                             :on-close (fn [code reason remote]
                                         (log/i "darknet on close" code reason remote)
                                         (set-status! this Color/RED)
-                                        (Thread/sleep 200)
+                                        (Thread/sleep 1000)
                                         (new-client))
                             :on-message on-message
                             :on-error (fn [e]
                                         (log/i "darknet on error" (.getMessage e))
                                         (set-status! this Color/RED)
-                                        (Thread/sleep 200))})))]
+                                        (Thread/sleep 1000))})))]
           (new-client)))
       (on-ui
           (set-content-view! this
@@ -322,5 +330,20 @@
                              :orientation :vertical
                              :layout-width :fill
                              :layout-height :fill}
-             idle-screen])))))
+             (idle-screen Color/RED)]))))
+  (onStart [this]
+           (.superOnStart this)
+           (log/i "darknet on start"))
+  (onResume [this]
+            (.superOnResume this)
+            (log/i "darknet on resume"))
+  (onPause [this]
+           (.superOnPause this)
+           (log/i "darknet on pause"))
+  (onStop [this]
+          (.superOnStop this)
+          (log/i "darknet on stop"))
+  (onDestroy [this]
+             (.superOnDestroy this)
+             (log/i "darknet on destroy")))
 
