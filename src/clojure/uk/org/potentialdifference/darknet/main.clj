@@ -214,14 +214,23 @@
 (defn swap-view! [activity view]
   (replace-view! activity view))
 
+(def idle-screen
+  [:relative-layout {:layout-width :fill
+                     :layout-height :fill}
+   [:text-view {:text " °"
+                :id ::status-indicator
+                :text-size 50
+                :text-color Color/RED}]])
+
 (defn setup-video-view [view activity path]
   (doto view
     (fit-linear-layout!)
     (setVideoSource path)
-    (.setOnCompletionListener (reify
-                                MediaPlayer$OnCompletionListener
-                                (onCompletion [this mp]
-                                  (swap-view! activity (layout activity [:text-view {:text "..."}])))))
+    (.setOnCompletionListener
+     (reify
+       MediaPlayer$OnCompletionListener
+       (onCompletion [this mp]
+         (swap-view! activity (layout activity idle-screen)))))
     (.start))
   view)
 
@@ -231,9 +240,13 @@
 (defn save-locally! [activity instruction]
   (when-let [name (:name instruction)]
     (when-let [url (:url instruction)]
+      (log/i "darknet" "getting bytes...")
       (server/get-bytes url
                         (fn [bytes]
-                          (storage/write-bytes! bytes name))))))
+                          (log/i "darknet" "writing bytes...")
+                          (storage/write-bytes! bytes name)
+                          (on-ui
+                              (toast (str "Saved " name))))))))
 
 (defn view-local [activity instruction]
   (when-let [name (:name instruction)]
@@ -247,14 +260,6 @@
     (case (:type instruction)
       "image" (layout activity (image-from-url activity url))
       "video" (layout activity (video-from-path activity url)))))
-
-(def idle-screen
-  [:relative-layout {:layout-width :fill
-                     :layout-height :fill}
-   [:text-view {:text " °"
-                :id ::status-indicator
-                :text-size 50
-                :text-color Color/GREEN}]])
 
 (defn set-status! [context color]
   (on-ui
@@ -283,7 +288,7 @@
                                                                    (let [out (java.io.StringWriter.)]
                                                                      (pprint sizes out)
                                                                      (.toString out))}]))
-                               "stop" (sv (layout this [:text-view {:text "..."}]))
+                               "stop" (sv (layout this idle-screen))
                                :default))))
           sizes {:rear  (camera/preview-sizes 0)
                  :front (camera/preview-sizes 1)}]
@@ -307,8 +312,7 @@
                             :on-error (fn [e]
                                         (log/i "darknet on error" (.getMessage e))
                                         (set-status! this Color/RED)
-                                        (Thread/sleep 200)
-                                        (new-client))})))]
+                                        (Thread/sleep 200))})))]
           (new-client)))
       (on-ui
           (set-content-view! this
