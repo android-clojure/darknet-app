@@ -28,13 +28,12 @@
         <category android:name="android.intent.category.LAUNCHER"/>
       </intent-filter>
     </activity>
-    <activity android:name=".MainActivity">
+    <activity android:name=".MainActivity"
+              android:launchMode="singleInstance">
       <intent-filter>
         <action android:name='uk.org.potentialdifference.darknet.MAIN'/>
         <category android:name='android.intent.category.DEFAULT'/>
-        <action android:name="android.intent.action.MAIN" />
         <category android:name="android.intent.category.HOME" />
-        <category android:name="android.intent.category.DEFAULT" />
       </intent-filter>
     </activity>
   </application>
