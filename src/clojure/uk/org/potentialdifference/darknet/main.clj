@@ -16,6 +16,7 @@
             [uk.org.potentialdifference.darknet.camera :as camera]
             [uk.org.potentialdifference.darknet.server :as server]
             [uk.org.potentialdifference.darknet.storage :as storage]
+            [uk.org.potentialdifference.darknet.screen :as screen]
             [cheshire.core :refer [parse-string]]
             [clojure.java.io :as io]
             [clojure.pprint :refer [pprint]]
@@ -299,7 +300,8 @@
                (log/i "darknet on new intent"))
   (onStart [this]
            (.superOnStart this)
-           (let [sizes {:rear  (camera/preview-sizes 0)
+           (let [sizes {:screen (screen/dimensions this)
+                        :rear  (camera/preview-sizes 0)
                         :front (camera/preview-sizes 1)}
                  on-message (fn [str]
                               (let [instruction (->instruction str)
