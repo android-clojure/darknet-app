@@ -321,26 +321,27 @@
                                                                              (.toString out))}]))
                                       "stop" (sv (layout this (idle-screen Color/GREEN)))
                                       :default))))]
-             (letfn [(new-client []
-                       (log/i "darknet" "new client called")
-                       (reset! client
-                               (websocket/connect!
-                                (:ws-url config)
-                                {:on-open (fn [_]
-                                            (log/i "darknet" "websocket open")
-                                            (set-status! this Color/GREEN))
-                                 :on-close (fn [code reason remote]
-                                             (log/i "darknet on close" code reason remote)
-                                             (when-not (nil? @client)
-                                               (log/i "darknet unexpected close ... restarting")
-                                               (set-status! this Color/RED)
-                                               (Thread/sleep 1000)
-                                               (new-client)))
-                                 :on-message on-message
-                                 :on-error (fn [e]
-                                             (log/i "darknet on error" (.getMessage e))
-                                             (set-status! this Color/RED))})))]
-               (new-client)))
+             (future
+               (letfn [(new-client []
+                         (log/i "darknet" "new client called")
+                         (reset! client
+                                 (websocket/connect!
+                                  (:ws-url config)
+                                  {:on-open (fn [_]
+                                              (log/i "darknet" "websocket open")
+                                              (set-status! this Color/GREEN))
+                                   :on-close (fn [code reason remote]
+                                               (log/i "darknet on close" code reason remote)
+                                               (when-not (nil? @client)
+                                                 (log/i "darknet unexpected close ... restarting")
+                                                 (set-status! this Color/RED)
+                                                 (Thread/sleep 1000)
+                                                 (new-client)))
+                                   :on-message on-message
+                                   :on-error (fn [e]
+                                               (log/i "darknet on error" (.getMessage e))
+                                               (set-status! this Color/RED))})))]
+                 (new-client))))
            (log/i "darknet on start"))
   (onResume [this]
             (.superOnResume this)
