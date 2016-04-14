@@ -35,7 +35,7 @@
 
 (defn ssl-client! [client context]
   (let [cf (CertificateFactory/getInstance "X.509")
-        stream (-> context (.getResources) (.openRawResource "server_cert.cert"))
+        stream (.open (.getAssets context) "server_cert.cert")
         ca (try (.generateCertificate stream)
                 (finally
                   (.close stream)))
