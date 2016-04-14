@@ -165,7 +165,7 @@
                                  (.requestLayout)))
                            (when (and from to)
                              (log/i "darknet" "stream-video" from to width height)
-                             (server/stream-video from to width height)))))]
+                             (server/stream-video activity from to width height)))))]
         (doto (.getHolder surface)
           (.setType SurfaceHolder/SURFACE_TYPE_PUSH_BUFFERS)
           (.addCallback delegate))))
@@ -197,7 +197,7 @@
                                                           (count bytes))]
                 (on-ui
                     (.setImageBitmap view bitmap))))]
-      (server/get-bytes url f))
+      (server/get-bytes activity url f))
     view))
 
 (defn image-from-path [activity path]
@@ -249,7 +249,7 @@
   (when-let [name (:name instruction)]
     (when-let [url (:url instruction)]
       (log/i "darknet" "getting bytes...")
-      (server/get-bytes url
+      (server/get-bytes activity url
                         (fn [bytes]
                           (log/i "darknet" "writing bytes...")
                           (storage/write-bytes! bytes name)

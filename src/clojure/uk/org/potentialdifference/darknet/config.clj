@@ -1,6 +1,7 @@
 (ns uk.org.potentialdifference.darknet.config)
 
 (def host "192.168.1.25")
+;; (def host "172.20.10.2")
 
 (def config
   {:api-host host

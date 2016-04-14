@@ -61,7 +61,7 @@
             :multi-dex true
             :multi-dex-proguard-conf-path "build/proguard-multi-dex.cfg"
             :native-libraries-paths ["libs"]
-            :target-version "23"
+            :target-version "15"
             :aot-exclude-ns ["clojure.parallel" "clojure.core.reducers"
                              "cider.nrepl" "cider-nrepl.plugin"
                              "cider.nrepl.middleware.util.java.parser"
