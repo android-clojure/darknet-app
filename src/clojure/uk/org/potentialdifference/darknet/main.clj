@@ -205,6 +205,11 @@
     (fit-linear-layout!)
     (.setImageBitmap (BitmapFactory/decodeFile path))))
 
+(defn image-from-resource [activity resource]
+  (doto (ImageView. activity)
+    (fit-linear-layout!)
+    (.setImageResource resource)))
+
 (defn layout [activity view]
   (make-ui activity
            [:linear-layout {:background-color Color/BLACK
@@ -315,6 +320,7 @@
                                       "saveLocally" (save-locally! this instruction)
                                       "viewRemote" (sv (view-remote this instruction))
                                       "viewLocal" (sv (view-local this instruction))
+                                      "test" (sv (layout this (image-from-resource this R$drawable/test_card)))
                                       "info" (sv (layout this [:text-view {:text
                                                                            (let [out (java.io.StringWriter.)]
                                                                              (pprint sizes out)
