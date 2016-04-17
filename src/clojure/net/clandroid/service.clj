@@ -19,7 +19,7 @@
   (.unbindService context connection))
 
 (defn start-receiver!
-  [^Service context receiver-name func]
+  [context receiver-name func]
   (let [receiver (proxy [android.content.BroadcastReceiver] []
                    (onReceive [context intent]
                      (func context intent)))]
@@ -29,7 +29,7 @@
     receiver))
 
 (defn start-local-receiver!
-  [^Service context receiver-name func]
+  [context receiver-name func]
   (-> (android.support.v4.content.LocalBroadcastManager/getInstance context)
       (start-receiver! receiver-name func)))
 
@@ -43,14 +43,14 @@
       (stop-receiver! receiver-name)))
 
 (defn send-broadcast!
-  [^Service context params action-name]
+  [context params action-name]
   (let [intent (android.content.Intent.)]
     (.putExtra intent "params" params)
     (.setAction intent action-name)
     (.sendBroadcast context intent)))
 
 (defn send-local-broadcast!
-  [^Service context params action-name]
+  [context params action-name]
   (-> (android.support.v4.content.LocalBroadcastManager/getInstance context)
       (send-broadcast! params action-name)))
 

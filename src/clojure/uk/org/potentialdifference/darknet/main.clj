@@ -6,6 +6,7 @@
             [neko.resource :as res]
             [neko.threading :refer [on-ui]]
             [neko.log :as log]
+            [neko.data :refer [like-map]]
             [neko.intent :as intent]
             [neko.notify :as notify :refer [toast]]
             [neko.ui :refer [make-ui]]
@@ -42,8 +43,7 @@
            [android.view SurfaceHolder]
            [android.view SurfaceView]
            [android.util DisplayMetrics]
-           [android.content Intent]
-           [android.content Context]
+           [android.content Intent Context BroadcastReceiver]
            [com.michogarcia.mjpegview MjpegView]
            [com.michogarcia.mjpegview MjpegInputStream]
            [uk.org.potentialdifference.darknet StreamCameraDelegate]
@@ -287,6 +287,8 @@
 
 (def ^:const service-name "uk.org.potentialdifference.darknet.MainService")
 (def ^:const shutdown-receiver-name "ACTION_CLOSE_APP")
+(def ^:const websocket-message-name "ACTION_WEBSOCKET_MESSAGE")
+(def ^:const websocket-status-name "ACTION_WEBSOCKET_STATUS")
 
 (service/defservice uk.org.potentialdifference.darknet.MainService
   :def service
@@ -312,15 +314,13 @@
                                   (log/i "darknet" "websocket open"))
                        :on-close (fn [code reason remote]
                                    (log/i "darknet on close" code reason remote)
-                                   (when-not (nil? @client)
-                                     (log/i "darknet unexpected close")))
+                                   (service/send-local-broadcast! this {:connected? false} websocket-status-name))
                        :on-message (fn [message]
-                                     (log/i "darknet received message" (pr-str message)))
+                                     (log/i "darknet received message" (pr-str message))
+                                     (service/send-local-broadcast! this message websocket-message-name))
                        :on-error (fn [e]
                                    (log/i "darknet on error" (.getMessage e)))})]
-      (utils/set-state! this :connection connection))
-    ;; Start websocket
-    )
+      (utils/set-state! this :connection connection)))
   :on-destroy
   (fn [this]
     (log/i "darknet" "service destroyed!")
@@ -341,6 +341,21 @@
                          :layout-height :fill}
          (idle-screen Color/RED)])))
 
+(defn websocket-message-received [this message]
+  (let [instruction (->instruction message)
+        sv (fn [view] ;; Menononic: swap-view!
+             (swap-view! this view))]
+    (on-ui
+        (case (:message instruction)
+          "streamCamera" (sv (camera-view this instruction))
+          "viewStream" (sv (stream-view this instruction))
+          "saveLocally" (save-locally! this instruction)
+          "viewRemote" (sv (view-remote this instruction))
+          "viewLocal" (sv (view-local this instruction))
+          "test" (sv (layout this (image-from-resource this R$drawable/test_card)))
+          "stop" (sv (layout this (idle-screen Color/GREEN)))
+          :default))))
+
 (defactivity uk.org.potentialdifference.darknet.MainActivity
   :key :main
   :features [:no-title]
@@ -352,7 +367,20 @@
     (->> (fn [binder]
            (log/i "darknet" "service callback called with binder"))
          (service/start-service! this service-name)
-         (utils/set-state! this :service)))
+         (utils/set-state! this :service))
+    (->> (fn [context intent]
+           (let [params (get (like-map intent) "params")]
+             (log/i "darknet" "broadcast receiver received" params)
+             (websocket-message-received this params)))
+         (service/start-local-receiver! this websocket-message-name))
+    (->> (fn [context intent]
+           (let [params (get (like-map intent) "params")
+                 connected? (get params :connected?)]
+             (log/i "darknet" "got websocket status" params)
+             (set-status! this (if connected?
+                                 Color/GREEN
+                                 Color/RED))))
+         (service/start-local-receiver! this websocket-status-name)))
   (onNewIntent [this intent]
                (.superOnNewIntent this intent)
                (log/i "darknet on new intent"))
