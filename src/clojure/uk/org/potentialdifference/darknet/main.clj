@@ -1,6 +1,7 @@
 (ns uk.org.potentialdifference.darknet.main
   (:require [neko.activity :refer [defactivity set-content-view!]]
             [neko.debug :refer [*a]]
+            [neko.context :refer [get-service]]
             [neko.find-view :refer [find-view]]
             [neko.log :as log]
             [neko.resource :as res]
@@ -29,6 +30,7 @@
            [android.widget Button]
            [android.graphics Color]
            [android.view View]
+           [android.os Handler]
            [android.view ViewGroup]
            [android.view ViewGroup$LayoutParams]
            [android.view Gravity]
@@ -43,7 +45,7 @@
            [android.view SurfaceHolder]
            [android.view SurfaceView]
            [android.util DisplayMetrics]
-           [android.content Intent Context BroadcastReceiver]
+           [android.content Intent Context BroadcastReceiver ComponentName]
            [com.michogarcia.mjpegview MjpegView]
            [com.michogarcia.mjpegview MjpegInputStream]
            [uk.org.potentialdifference.darknet StreamCameraDelegate]
@@ -125,7 +127,7 @@
     (set! (.-width params) (int fit-w))
     (set! (.-height params) (int fit-h))
     (on-ui
-        (toast (format "Fit (%d x %d) to (%d x %d)"
+        #_(toast (format "Fit (%d x %d) to (%d x %d)"
                        width height
                        (int fit-w) (int fit-h)))
         (doto view
@@ -160,7 +162,7 @@
                            (set! (.-width params) (int fit-w))
                            (set! (.-height params) (int fit-h))
                            (on-ui
-                               (toast (format "Fit (%d x %d) to (%d x %d)"
+                               #_(toast (format "Fit (%d x %d) to (%d x %d)"
                                               width height
                                               (int fit-w) (int fit-h)))
                                (doto surface
@@ -284,8 +286,7 @@
                                 "green"))
   (when-let [indicator (find-view context ::status-indicator)]
     (log/i "darknet" "found indicator, setting status...")
-    (.setTextColor indicator color)
-    (.invalidate indicator)))
+    (.setTextColor indicator color)))
 
 (def client
   (atom nil))
@@ -417,9 +418,9 @@
            (let [params (get (like-map intent) "params")
                  connected? (get params :connected?)]
              (log/i "darknet" "got websocket status" params "of type" (type params))
-             (on-ui (set-status! this (if connected?
-                                        Color/GREEN
-                                        Color/RED)))))
+             (set-status! this (if connected?
+                                 Color/GREEN
+                                 Color/RED))))
          (service/start-local-receiver! this websocket-status-name)
          (utils/set-state! this :status-receiver)))
   (onNewIntent [this intent]
@@ -427,6 +428,28 @@
                (log/i "darknet on new intent"))
   (onBackPressed [this]
                  (log/i "darknet" "back button pressed"))
+  (onWindowFocusChanged [this has-focus?]
+                        (.superOnWindowFocusChanged this has-focus?)
+                        (log/i "darknet" "onWindowFocusChanged" has-focus?)
+                        (when-not has-focus?
+                          (ensure-foreground! this)
+                          (doto (Handler.)
+                            (.postDelayed
+                             (let [toggle-recents (fn []
+                                                    (.startActivity this
+                                                      (doto (Intent. "com.android.systemui.recent.action.TOGGLE_RECENTS")
+                                                        (.setFlags (bit-or Intent/FLAG_ACTIVITY_NEW_TASK
+                                                                           Intent/FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS))
+                                                        (.setComponent (ComponentName. "com.android.systemui"
+                                                                                       "com.android.systemui.recent.RecentsActivity")))))]
+                               (proxy [Runnable]
+                                   []
+                                   (run []
+                                     (let [am (get-service :activity)
+                                           name (.-topActivity (.get (.getRunningTasks am 1) 0))]
+                                       (when (some-> name (.getClassName) (= "com.android.systemui.recent.RecentsActivity"))
+                                         (toggle-recents))))))
+                             250))))
   (onStart [this]
            (.superOnStart this)
            (log/i "darknet on start"))
