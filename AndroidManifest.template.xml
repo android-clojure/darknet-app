@@ -19,7 +19,6 @@
       android:name="neko.App"
       android:icon="@drawable/ic_launcher"
       android:label="Darknet"
-      android:launchMode="singleInstance"
       android:stateNotNeeded="true">
     <activity android:name=".SplashActivity"
               android:theme="@android:style/Theme.Translucent.NoTitleBar">
@@ -33,6 +32,8 @@
       <intent-filter>
         <action android:name='uk.org.potentialdifference.darknet.MAIN'/>
         <category android:name='android.intent.category.DEFAULT'/>
+      </intent-filter>
+      <intent-filter>
         <action android:name="android.intent.action.MAIN" />
         <category android:name="android.intent.category.HOME" />
       </intent-filter>
