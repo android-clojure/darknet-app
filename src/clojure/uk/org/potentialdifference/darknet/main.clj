@@ -306,15 +306,29 @@
              (catch Exception e nil)))
          (service/start-receiver! this shutdown-receiver-name)
          (utils/set-state! this shutdown-receiver-name))
+    (let [connection (websocket/connect!
+                      (:ws-url config)
+                      {:on-open (fn [_]
+                                  (log/i "darknet" "websocket open"))
+                       :on-close (fn [code reason remote]
+                                   (log/i "darknet on close" code reason remote)
+                                   (when-not (nil? @client)
+                                     (log/i "darknet unexpected close")))
+                       :on-message (fn [message]
+                                     (log/i "darknet received message" (pr-str message)))
+                       :on-error (fn [e]
+                                   (log/i "darknet on error" (.getMessage e)))})]
+      (utils/set-state! this :connection connection))
     ;; Start websocket
-)
+    )
   :on-destroy
   (fn [this]
     (log/i "darknet" "service destroyed!")
     (when-let [receiver (utils/get-state this shutdown-receiver-name)]
       (service/stop-receiver! this receiver))
-    ;; Stop websocket
-    ))
+    (when-let [connection (utils/get-state this :connection)]
+      (log/i "darknet" "closing websocket")
+      (.closeBlocking connection))))
 
 (defn default-content-view [this]
   (on-ui
@@ -353,9 +367,9 @@
            (log/i "darknet on pause"))
   (onStop [this]
           (.superOnStop this)
-          (log/i "darknet on stop")
-          (service/stop-service! this (utils/get-state this :service)))
+          (log/i "darknet on stop"))
   (onDestroy [this]
              (.superOnDestroy this)
-             (log/i "darknet on destroy")))
+             (log/i "darknet on destroy")
+             (service/stop-service! this (utils/get-state this :service))))
 
