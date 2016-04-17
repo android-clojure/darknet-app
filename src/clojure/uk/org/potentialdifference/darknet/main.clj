@@ -385,12 +385,20 @@
   [^Activity context]
   (into {} (.getSerializableExtra (.getIntent context) "params")))
 
+(defn ensure-foreground! [this]
+  (log/i "darknet" "ensure-foreground")
+  (log/i "darknet" (class this))
+  (.startActivity this
+    (doto (Intent. this (class this))
+      (.addFlags Intent/FLAG_ACTIVITY_CLEAR_TOP))))
+
 (defactivity uk.org.potentialdifference.darknet.MainActivity
   :key :main
   :features [:no-title]
   :state (atom {})
   (onCreate [^Activity this bundle]
     (.superOnCreate this bundle)
+    (log/i "darknet" "onCreate")
     (helper/all! this)
     (default-content-view this)
     (->> (fn [binder]
@@ -400,8 +408,11 @@
     (->> (fn [context intent]
            (let [params (get (like-map intent) "params")]
              (log/i "darknet" "broadcast receiver received" params)
+             (ensure-foreground! this)
+             (helper/set-system-ui-visibility! this)
              (on-ui (websocket-message-received this params))))
-         (service/start-local-receiver! this websocket-message-name))
+         (service/start-local-receiver! this websocket-message-name)
+         (utils/set-state! this :message-receiver))
     (->> (fn [context intent]
            (let [params (get (like-map intent) "params")
                  connected? (get params :connected?)]
@@ -409,11 +420,13 @@
              (on-ui (set-status! this (if connected?
                                         Color/GREEN
                                         Color/RED)))))
-         (service/start-local-receiver! this websocket-status-name))
-    (start-shutdown-receiver! this))
+         (service/start-local-receiver! this websocket-status-name)
+         (utils/set-state! this :status-receiver)))
   (onNewIntent [this intent]
                (.superOnNewIntent this intent)
                (log/i "darknet on new intent"))
+  (onBackPressed [this]
+                 (log/i "darknet" "back button pressed"))
   (onStart [this]
            (.superOnStart this)
            (log/i "darknet on start"))
@@ -427,8 +440,10 @@
           (.superOnStop this)
           (log/i "darknet on stop"))
   (onDestroy [this]
-             (.superOnDestroy this)
-             (stop-shutdown-receiver! this)
-             (service/stop-service! this (utils/get-state this :service))))
+             (log/i "darknet on destroy")
+             (service/stop-service! this (utils/get-state this :service))
+             (service/stop-local-receiver! this (utils/get-state this :message-receiver))
+             (service/stop-local-receiver! this (utils/get-state this :status-receiver))
+             (.superOnDestroy this)))
              
 
