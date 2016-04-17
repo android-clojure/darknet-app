@@ -34,7 +34,7 @@
       (start-receiver! receiver-name func)))
 
 (defn stop-receiver!
-  [^Service context receiver]
+  [context receiver]
   (.unregisterReceiver context receiver))
 
 (defn stop-local-receiver!

@@ -278,9 +278,14 @@
       "video" (layout activity (video-from-path activity url)))))
 
 (defn set-status! [context color]
-  (on-ui
-      (if-let [indicator (find-view context ::status-indicator)]
-        (.setTextColor indicator color))))
+  (log/i "darknet" "setting status..." color)
+  (log/i "darknet" "color is" (if (= color Color/RED)
+                                "red"
+                                "green"))
+  (when-let [indicator (find-view context ::status-indicator)]
+    (log/i "darknet" "found indicator, setting status...")
+    (.setTextColor indicator color)
+    (.invalidate indicator)))
 
 (def client
   (atom nil))
@@ -289,6 +294,17 @@
 (def ^:const shutdown-receiver-name "ACTION_CLOSE_APP")
 (def ^:const websocket-message-name "ACTION_WEBSOCKET_MESSAGE")
 (def ^:const websocket-status-name "ACTION_WEBSOCKET_STATUS")
+
+(defn connected-client [url on-open on-close on-message]
+  (websocket/connect!
+   url
+   {:on-message on-message
+    :on-open #(on-open %1 %2)
+    :on-error #(log/i "darknet websocket on-error" (.getMessage %))
+    :on-close (fn [code reason remote]
+                (on-close code reason remote)
+                (Thread/sleep 5000)
+                (connected-client url on-open on-close on-message))}))
 
 (service/defservice uk.org.potentialdifference.darknet.MainService
   :def service
@@ -308,19 +324,18 @@
              (catch Exception e nil)))
          (service/start-receiver! this shutdown-receiver-name)
          (utils/set-state! this shutdown-receiver-name))
-    (let [connection (websocket/connect!
-                      (:ws-url config)
-                      {:on-open (fn [_]
-                                  (log/i "darknet" "websocket open"))
-                       :on-close (fn [code reason remote]
-                                   (log/i "darknet on close" code reason remote)
-                                   (service/send-local-broadcast! this {:connected? false} websocket-status-name))
-                       :on-message (fn [message]
-                                     (log/i "darknet received message" (pr-str message))
-                                     (service/send-local-broadcast! this message websocket-message-name))
-                       :on-error (fn [e]
-                                   (log/i "darknet on error" (.getMessage e)))})]
-      (utils/set-state! this :connection connection)))
+    (future (connected-client
+             (:ws-url config)
+             (fn [client handshake]
+               (log/i "darknet" "websocket opened")
+               (utils/set-state! this :connection client)
+               (service/send-local-broadcast! this {:connected? true} websocket-status-name))
+             (fn [code reason remote]
+               (log/i "darknet" "websocket closed")
+               (utils/set-state! this :connection nil)
+               (service/send-local-broadcast! this {:connected? false} websocket-status-name))
+             (fn [message]
+               (service/send-local-broadcast! this message websocket-message-name)))))
   :on-destroy
   (fn [this]
     (log/i "darknet" "service destroyed!")
@@ -331,30 +346,44 @@
       (.closeBlocking connection))))
 
 (defn default-content-view [this]
-  (on-ui
-      (set-content-view! this
-        [:linear-layout {:id ::container
-                         :background-color Color/BLACK
-                         :gravity Gravity/CENTER
-                         :orientation :vertical
-                         :layout-width :fill
-                         :layout-height :fill}
-         (idle-screen Color/RED)])))
+  (set-content-view! this
+    [:linear-layout {:id ::container
+                     :background-color Color/BLACK
+                     :gravity Gravity/CENTER
+                     :orientation :vertical
+                     :layout-width :fill
+                     :layout-height :fill}
+     (idle-screen Color/RED)]))
 
 (defn websocket-message-received [this message]
   (let [instruction (->instruction message)
         sv (fn [view] ;; Menononic: swap-view!
              (swap-view! this view))]
-    (on-ui
-        (case (:message instruction)
-          "streamCamera" (sv (camera-view this instruction))
-          "viewStream" (sv (stream-view this instruction))
-          "saveLocally" (save-locally! this instruction)
-          "viewRemote" (sv (view-remote this instruction))
-          "viewLocal" (sv (view-local this instruction))
-          "test" (sv (layout this (image-from-resource this R$drawable/test_card)))
-          "stop" (sv (layout this (idle-screen Color/GREEN)))
-          :default))))
+    (case (:message instruction)
+      "streamCamera" (sv (camera-view this instruction))
+      "viewStream" (sv (stream-view this instruction))
+      "saveLocally" (save-locally! this instruction)
+      "viewRemote" (sv (view-remote this instruction))
+      "viewLocal" (sv (view-local this instruction))
+      "test" (sv (layout this (image-from-resource this R$drawable/test_card)))
+      "stop" (sv (layout this (idle-screen Color/GREEN)))
+      :default)))
+
+(defn start-shutdown-receiver!
+  [context]
+  (->> (fn [context intent]
+         (.finish context))
+       (service/start-receiver! context shutdown-receiver-name)
+       (utils/set-state! context shutdown-receiver-name)))
+
+(defn stop-shutdown-receiver!
+  [context]
+  (when-let [receiver (utils/get-state context shutdown-receiver-name)]
+    (service/stop-receiver! context receiver)))
+
+(defn get-params
+  [^Activity context]
+  (into {} (.getSerializableExtra (.getIntent context) "params")))
 
 (defactivity uk.org.potentialdifference.darknet.MainActivity
   :key :main
@@ -371,16 +400,17 @@
     (->> (fn [context intent]
            (let [params (get (like-map intent) "params")]
              (log/i "darknet" "broadcast receiver received" params)
-             (websocket-message-received this params)))
+             (on-ui (websocket-message-received this params))))
          (service/start-local-receiver! this websocket-message-name))
     (->> (fn [context intent]
            (let [params (get (like-map intent) "params")
                  connected? (get params :connected?)]
-             (log/i "darknet" "got websocket status" params)
-             (set-status! this (if connected?
-                                 Color/GREEN
-                                 Color/RED))))
-         (service/start-local-receiver! this websocket-status-name)))
+             (log/i "darknet" "got websocket status" params "of type" (type params))
+             (on-ui (set-status! this (if connected?
+                                        Color/GREEN
+                                        Color/RED)))))
+         (service/start-local-receiver! this websocket-status-name))
+    (start-shutdown-receiver! this))
   (onNewIntent [this intent]
                (.superOnNewIntent this intent)
                (log/i "darknet on new intent"))
@@ -398,6 +428,7 @@
           (log/i "darknet on stop"))
   (onDestroy [this]
              (.superOnDestroy this)
-             (log/i "darknet on destroy")
+             (stop-shutdown-receiver! this)
              (service/stop-service! this (utils/get-state this :service))))
+             
 
