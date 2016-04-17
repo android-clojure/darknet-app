@@ -38,6 +38,7 @@
         <category android:name="android.intent.category.HOME" />
       </intent-filter>
     </activity>
+    <service android:name=".MainService"/>
   </application>
 
   {{#debug-build}}

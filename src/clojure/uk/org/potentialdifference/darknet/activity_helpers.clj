@@ -13,3 +13,9 @@
 
 (defn landscape! [^Activity activity]
   (.setRequestedOrientation activity ActivityInfo/SCREEN_ORIENTATION_LANDSCAPE))
+
+(defn all! [activity]
+  (doto activity
+    (fullscreen!)
+    (keep-screen-on!)
+    (landscape!)))

@@ -7,7 +7,7 @@
             [neko.threading :refer [on-ui]]
             [neko.log :as log]
             [neko.intent :as intent]
-            [neko.notify :refer [toast]]
+            [neko.notify :as notify :refer [toast]]
             [neko.ui :refer [make-ui]]
             [neko.ui.mapping :refer [defelement]]
             [uk.org.potentialdifference.darknet.config :refer [config]]
@@ -17,10 +17,13 @@
             [uk.org.potentialdifference.darknet.server :as server]
             [uk.org.potentialdifference.darknet.storage :as storage]
             [uk.org.potentialdifference.darknet.screen :as screen]
+            [uk.org.potentialdifference.darknet.utils :as utils]
+            [net.clandroid.service :as service]
             [cheshire.core :refer [parse-string]]
             [clojure.java.io :as io]
             [clojure.pprint :refer [pprint]]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            [net.clandroid.service :as service])
   (:import [android.app Activity]
            [android.widget Button]
            [android.graphics Color]
@@ -282,71 +285,65 @@
 (def client
   (atom nil))
 
+(def ^:const service-name "uk.org.potentialdifference.darknet.MainService")
+(def ^:const shutdown-receiver-name "ACTION_CLOSE_APP")
+
+(service/defservice uk.org.potentialdifference.darknet.MainService
+  :def service
+  :state (atom {})
+  :on-create
+  (fn [this]
+    (log/i "darknet" "service created!")
+    (->> (notify/notification this
+                              {:icon (R$drawable/ic_launcher)
+                               :content-title "Darknet"
+                               :content-text "Server connection"
+                               :action [:broadcast shutdown-receiver-name]})
+         (service/start-foreground! this 1))
+    (->> (fn [context intent]
+           (try
+             (.stopSelf service)
+             (catch Exception e nil)))
+         (service/start-receiver! this shutdown-receiver-name)
+         (utils/set-state! this shutdown-receiver-name))
+    ;; Start websocket
+)
+  :on-destroy
+  (fn [this]
+    (log/i "darknet" "service destroyed!")
+    (when-let [receiver (utils/get-state this shutdown-receiver-name)]
+      (service/stop-receiver! this receiver))
+    ;; Stop websocket
+    ))
+
+(defn default-content-view [this]
+  (on-ui
+      (set-content-view! this
+        [:linear-layout {:id ::container
+                         :background-color Color/BLACK
+                         :gravity Gravity/CENTER
+                         :orientation :vertical
+                         :layout-width :fill
+                         :layout-height :fill}
+         (idle-screen Color/RED)])))
+
 (defactivity uk.org.potentialdifference.darknet.MainActivity
   :key :main
   :features [:no-title]
-  
+  :state (atom {})
   (onCreate [^Activity this bundle]
     (.superOnCreate this bundle)
-    (helper/fullscreen! this)
-    (helper/keep-screen-on! this)
-    (helper/landscape! this)
-    (on-ui
-        (set-content-view! this
-          [:linear-layout {:id ::container
-                           :background-color Color/BLACK
-                           :gravity Gravity/CENTER
-                           :orientation :vertical
-                           :layout-width :fill
-                           :layout-height :fill}
-           (idle-screen Color/RED)])))
+    (helper/all! this)
+    (default-content-view this)
+    (->> (fn [binder]
+           (log/i "darknet" "service callback called with binder"))
+         (service/start-service! this service-name)
+         (utils/set-state! this :service)))
   (onNewIntent [this intent]
                (.superOnNewIntent this intent)
                (log/i "darknet on new intent"))
   (onStart [this]
            (.superOnStart this)
-           (let [sizes {:screen (screen/dimensions this)
-                        :rear  (camera/preview-sizes 0)
-                        :front (camera/preview-sizes 1)}
-                 on-message (fn [str]
-                              (let [instruction (->instruction str)
-                                    sv (fn [view] ;; Menononic: swap-view!
-                                         (swap-view! this view))]
-                                (log/i "darknet" instruction)
-                                (on-ui
-                                    (case (:message instruction)
-                                      "streamCamera" (sv (camera-view this instruction))
-                                      "viewStream" (sv (stream-view this instruction))
-                                      "saveLocally" (save-locally! this instruction)
-                                      "viewRemote" (sv (view-remote this instruction))
-                                      "viewLocal" (sv (view-local this instruction))
-                                      "test" (sv (layout this (image-from-resource this R$drawable/test_card)))
-                                      "info" (sv (layout this [:text-view {:text
-                                                                           (let [out (java.io.StringWriter.)]
-                                                                             (pprint sizes out)
-                                                                             (.toString out))}]))
-                                      "stop" (sv (layout this (idle-screen Color/GREEN)))
-                                      :default))))]
-             (letfn [(new-client []
-                       (log/i "darknet" "new client called")
-                       (reset! client
-                               (websocket/connect!
-                                (:ws-url config)
-                                {:on-open (fn [_]
-                                            (log/i "darknet" "websocket open")
-                                            (set-status! this Color/GREEN))
-                                 :on-close (fn [code reason remote]
-                                             (log/i "darknet on close" code reason remote)
-                                             (when-not (nil? @client)
-                                               (log/i "darknet unexpected close ... restarting")
-                                               (set-status! this Color/RED)
-                                               (Thread/sleep 1000)
-                                               (new-client)))
-                                 :on-message on-message
-                                 :on-error (fn [e]
-                                             (log/i "darknet on error" (.getMessage e))
-                                             (set-status! this Color/RED))})))]
-               (new-client)))
            (log/i "darknet on start"))
   (onResume [this]
             (.superOnResume this)
@@ -356,11 +353,8 @@
            (log/i "darknet on pause"))
   (onStop [this]
           (.superOnStop this)
-          (when-let [c @client]
-            (log/i "darknet close client")
-            (reset! client nil)
-            (.closeBlocking c))
-          (log/i "darknet on stop"))
+          (log/i "darknet on stop")
+          (service/stop-service! this (utils/get-state this :service)))
   (onDestroy [this]
              (.superOnDestroy this)
              (log/i "darknet on destroy")))

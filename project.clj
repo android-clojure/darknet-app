@@ -17,7 +17,8 @@
                  [cheshire "5.5.0" :exclusions [org.clojure/clojure]]
 
                  [happy "0.5.2"]
-                 [com.squareup.okhttp/okhttp "2.5.0"]]
+                 [com.squareup.okhttp/okhttp "2.5.0"]
+                 [com.android.support/support-v4 "13.0.0"]]
   :profiles {:default [:dev]
 
              :dev
