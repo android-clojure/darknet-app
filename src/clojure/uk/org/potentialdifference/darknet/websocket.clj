@@ -7,7 +7,7 @@
   (doto (proxy [WebSocketClient]
             [(new URI url) (new Draft_10)]
             (onOpen [handshake]
-              ((:on-open options) handshake))
+              ((:on-open options) this handshake))
             (onClose [code reason remote]
               ((:on-close options) code reason remote))
             (onMessage [message]

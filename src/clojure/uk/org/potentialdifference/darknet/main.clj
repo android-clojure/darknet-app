@@ -1,13 +1,15 @@
 (ns uk.org.potentialdifference.darknet.main
   (:require [neko.activity :refer [defactivity set-content-view!]]
             [neko.debug :refer [*a]]
+            [neko.context :refer [get-service]]
             [neko.find-view :refer [find-view]]
             [neko.log :as log]
             [neko.resource :as res]
             [neko.threading :refer [on-ui]]
             [neko.log :as log]
+            [neko.data :refer [like-map]]
             [neko.intent :as intent]
-            [neko.notify :refer [toast]]
+            [neko.notify :as notify :refer [toast]]
             [neko.ui :refer [make-ui]]
             [neko.ui.mapping :refer [defelement]]
             [uk.org.potentialdifference.darknet.config :refer [config]]
@@ -17,14 +19,18 @@
             [uk.org.potentialdifference.darknet.server :as server]
             [uk.org.potentialdifference.darknet.storage :as storage]
             [uk.org.potentialdifference.darknet.screen :as screen]
+            [uk.org.potentialdifference.darknet.utils :as utils]
+            [net.clandroid.service :as service]
             [cheshire.core :refer [parse-string]]
             [clojure.java.io :as io]
             [clojure.pprint :refer [pprint]]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            [net.clandroid.service :as service])
   (:import [android.app Activity]
            [android.widget Button]
            [android.graphics Color]
            [android.view View]
+           [android.os Handler]
            [android.view ViewGroup]
            [android.view ViewGroup$LayoutParams]
            [android.view Gravity]
@@ -39,8 +45,7 @@
            [android.view SurfaceHolder]
            [android.view SurfaceView]
            [android.util DisplayMetrics]
-           [android.content Intent]
-           [android.content Context]
+           [android.content Intent Context BroadcastReceiver ComponentName]
            [com.michogarcia.mjpegview MjpegView]
            [com.michogarcia.mjpegview MjpegInputStream]
            [uk.org.potentialdifference.darknet StreamCameraDelegate]
@@ -122,7 +127,7 @@
     (set! (.-width params) (int fit-w))
     (set! (.-height params) (int fit-h))
     (on-ui
-        (toast (format "Fit (%d x %d) to (%d x %d)"
+        #_(toast (format "Fit (%d x %d) to (%d x %d)"
                        width height
                        (int fit-w) (int fit-h)))
         (doto view
@@ -157,7 +162,7 @@
                            (set! (.-width params) (int fit-w))
                            (set! (.-height params) (int fit-h))
                            (on-ui
-                               (toast (format "Fit (%d x %d) to (%d x %d)"
+                               #_(toast (format "Fit (%d x %d) to (%d x %d)"
                                               width height
                                               (int fit-w) (int fit-h)))
                                (doto surface
@@ -275,78 +280,178 @@
       "video" (layout activity (video-from-path activity url)))))
 
 (defn set-status! [context color]
-  (on-ui
-      (if-let [indicator (find-view context ::status-indicator)]
-        (.setTextColor indicator color))))
+  (log/i "darknet" "setting status..." color)
+  (log/i "darknet" "color is" (if (= color Color/RED)
+                                "red"
+                                "green"))
+  (when-let [indicator (find-view context ::status-indicator)]
+    (log/i "darknet" "found indicator, setting status...")
+    (.setTextColor indicator color)))
 
 (def client
   (atom nil))
 
+(def ^:const service-name "uk.org.potentialdifference.darknet.MainService")
+(def ^:const shutdown-receiver-name "ACTION_CLOSE_APP")
+(def ^:const websocket-message-name "ACTION_WEBSOCKET_MESSAGE")
+(def ^:const websocket-status-name "ACTION_WEBSOCKET_STATUS")
+
+(defn connected-client [url on-open on-close on-message]
+  (websocket/connect!
+   url
+   {:on-message on-message
+    :on-open #(on-open %1 %2)
+    :on-error #(log/i "darknet websocket on-error" (.getMessage %))
+    :on-close (fn [code reason remote]
+                (on-close code reason remote)
+                (Thread/sleep 5000)
+                (connected-client url on-open on-close on-message))}))
+
+(service/defservice uk.org.potentialdifference.darknet.MainService
+  :def service
+  :state (atom {})
+  :on-create
+  (fn [this]
+    (log/i "darknet" "service created!")
+    (->> (notify/notification this
+                              {:icon (R$drawable/ic_launcher)
+                               :content-title "Darknet"
+                               :content-text "Server connection"
+                               :action [:broadcast shutdown-receiver-name]})
+         (service/start-foreground! this 1))
+    (->> (fn [context intent]
+           (try
+             (.stopSelf service)
+             (catch Exception e nil)))
+         (service/start-receiver! this shutdown-receiver-name)
+         (utils/set-state! this shutdown-receiver-name))
+    (future (connected-client
+             (:ws-url config)
+             (fn [client handshake]
+               (log/i "darknet" "websocket opened")
+               (utils/set-state! this :connection client)
+               (service/send-local-broadcast! this {:connected? true} websocket-status-name))
+             (fn [code reason remote]
+               (log/i "darknet" "websocket closed")
+               (utils/set-state! this :connection nil)
+               (service/send-local-broadcast! this {:connected? false} websocket-status-name))
+             (fn [message]
+               (service/send-local-broadcast! this message websocket-message-name)))))
+  :on-destroy
+  (fn [this]
+    (log/i "darknet" "service destroyed!")
+    (when-let [receiver (utils/get-state this shutdown-receiver-name)]
+      (service/stop-receiver! this receiver))
+    (when-let [connection (utils/get-state this :connection)]
+      (log/i "darknet" "closing websocket")
+      (.closeBlocking connection))))
+
+(defn default-content-view [this]
+  (set-content-view! this
+    [:linear-layout {:id ::container
+                     :background-color Color/BLACK
+                     :gravity Gravity/CENTER
+                     :orientation :vertical
+                     :layout-width :fill
+                     :layout-height :fill}
+     (idle-screen Color/RED)]))
+
+(defn websocket-message-received [this message]
+  (let [instruction (->instruction message)
+        sv (fn [view] ;; Menononic: swap-view!
+             (swap-view! this view))]
+    (case (:message instruction)
+      "streamCamera" (sv (camera-view this instruction))
+      "viewStream" (sv (stream-view this instruction))
+      "saveLocally" (save-locally! this instruction)
+      "viewRemote" (sv (view-remote this instruction))
+      "viewLocal" (sv (view-local this instruction))
+      "test" (sv (layout this (image-from-resource this R$drawable/test_card)))
+      "stop" (sv (layout this (idle-screen Color/GREEN)))
+      :default)))
+
+(defn start-shutdown-receiver!
+  [context]
+  (->> (fn [context intent]
+         (.finish context))
+       (service/start-receiver! context shutdown-receiver-name)
+       (utils/set-state! context shutdown-receiver-name)))
+
+(defn stop-shutdown-receiver!
+  [context]
+  (when-let [receiver (utils/get-state context shutdown-receiver-name)]
+    (service/stop-receiver! context receiver)))
+
+(defn get-params
+  [^Activity context]
+  (into {} (.getSerializableExtra (.getIntent context) "params")))
+
+(defn ensure-foreground! [this]
+  (log/i "darknet" "ensure-foreground")
+  (log/i "darknet" (class this))
+  (.startActivity this
+    (doto (Intent. this (class this))
+      (.addFlags Intent/FLAG_ACTIVITY_CLEAR_TOP))))
+
 (defactivity uk.org.potentialdifference.darknet.MainActivity
   :key :main
   :features [:no-title]
-  
+  :state (atom {})
   (onCreate [^Activity this bundle]
     (.superOnCreate this bundle)
-    (helper/fullscreen! this)
-    (helper/keep-screen-on! this)
-    (helper/landscape! this)
-    (on-ui
-        (set-content-view! this
-          [:linear-layout {:id ::container
-                           :background-color Color/BLACK
-                           :gravity Gravity/CENTER
-                           :orientation :vertical
-                           :layout-width :fill
-                           :layout-height :fill}
-           (idle-screen Color/RED)])))
+    (log/i "darknet" "onCreate")
+    (helper/all! this)
+    (default-content-view this)
+    (->> (fn [binder]
+           (log/i "darknet" "service callback called with binder"))
+         (service/start-service! this service-name)
+         (utils/set-state! this :service))
+    (->> (fn [context intent]
+           (let [params (get (like-map intent) "params")]
+             (log/i "darknet" "broadcast receiver received" params)
+             (ensure-foreground! this)
+             (helper/set-system-ui-visibility! this)
+             (on-ui (websocket-message-received this params))))
+         (service/start-local-receiver! this websocket-message-name)
+         (utils/set-state! this :message-receiver))
+    (->> (fn [context intent]
+           (let [params (get (like-map intent) "params")
+                 connected? (get params :connected?)]
+             (log/i "darknet" "got websocket status" params "of type" (type params))
+             (set-status! this (if connected?
+                                 Color/GREEN
+                                 Color/RED))))
+         (service/start-local-receiver! this websocket-status-name)
+         (utils/set-state! this :status-receiver)))
   (onNewIntent [this intent]
                (.superOnNewIntent this intent)
                (log/i "darknet on new intent"))
+  (onBackPressed [this]
+                 (log/i "darknet" "back button pressed"))
+  (onWindowFocusChanged [this has-focus?]
+                        (.superOnWindowFocusChanged this has-focus?)
+                        (log/i "darknet" "onWindowFocusChanged" has-focus?)
+                        (when-not has-focus?
+                          (ensure-foreground! this)
+                          (doto (Handler.)
+                            (.postDelayed
+                             (let [toggle-recents (fn []
+                                                    (.startActivity this
+                                                      (doto (Intent. "com.android.systemui.recent.action.TOGGLE_RECENTS")
+                                                        (.setFlags (bit-or Intent/FLAG_ACTIVITY_NEW_TASK
+                                                                           Intent/FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS))
+                                                        (.setComponent (ComponentName. "com.android.systemui"
+                                                                                       "com.android.systemui.recent.RecentsActivity")))))]
+                               (proxy [Runnable]
+                                   []
+                                   (run []
+                                     (let [am (get-service :activity)
+                                           name (.-topActivity (.get (.getRunningTasks am 1) 0))]
+                                       (when (some-> name (.getClassName) (= "com.android.systemui.recent.RecentsActivity"))
+                                         (toggle-recents))))))
+                             250))))
   (onStart [this]
            (.superOnStart this)
-           (let [sizes {:screen (screen/dimensions this)
-                        :rear  (camera/preview-sizes 0)
-                        :front (camera/preview-sizes 1)}
-                 on-message (fn [str]
-                              (let [instruction (->instruction str)
-                                    sv (fn [view] ;; Menononic: swap-view!
-                                         (swap-view! this view))]
-                                (log/i "darknet" instruction)
-                                (on-ui
-                                    (case (:message instruction)
-                                      "streamCamera" (sv (camera-view this instruction))
-                                      "viewStream" (sv (stream-view this instruction))
-                                      "saveLocally" (save-locally! this instruction)
-                                      "viewRemote" (sv (view-remote this instruction))
-                                      "viewLocal" (sv (view-local this instruction))
-                                      "test" (sv (layout this (image-from-resource this R$drawable/test_card)))
-                                      "info" (sv (layout this [:text-view {:text
-                                                                           (let [out (java.io.StringWriter.)]
-                                                                             (pprint sizes out)
-                                                                             (.toString out))}]))
-                                      "stop" (sv (layout this (idle-screen Color/GREEN)))
-                                      :default))))]
-             (letfn [(new-client []
-                       (log/i "darknet" "new client called")
-                       (reset! client
-                               (websocket/connect!
-                                (:ws-url config)
-                                {:on-open (fn [_]
-                                            (log/i "darknet" "websocket open")
-                                            (set-status! this Color/GREEN))
-                                 :on-close (fn [code reason remote]
-                                             (log/i "darknet on close" code reason remote)
-                                             (when-not (nil? @client)
-                                               (log/i "darknet unexpected close ... restarting")
-                                               (set-status! this Color/RED)
-                                               (Thread/sleep 1000)
-                                               (new-client)))
-                                 :on-message on-message
-                                 :on-error (fn [e]
-                                             (log/i "darknet on error" (.getMessage e))
-                                             (set-status! this Color/RED))})))]
-               (new-client)))
            (log/i "darknet on start"))
   (onResume [this]
             (.superOnResume this)
@@ -356,12 +461,12 @@
            (log/i "darknet on pause"))
   (onStop [this]
           (.superOnStop this)
-          (when-let [c @client]
-            (log/i "darknet close client")
-            (reset! client nil)
-            (.closeBlocking c))
           (log/i "darknet on stop"))
   (onDestroy [this]
-             (.superOnDestroy this)
-             (log/i "darknet on destroy")))
+             (log/i "darknet on destroy")
+             (service/stop-service! this (utils/get-state this :service))
+             (service/stop-local-receiver! this (utils/get-state this :message-receiver))
+             (service/stop-local-receiver! this (utils/get-state this :status-receiver))
+             (.superOnDestroy this)))
+             
 
